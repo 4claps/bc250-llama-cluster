@@ -1,0 +1,4 @@
+---
+base_expand_root_lvm_enabled: false
+base_root_lvm_vg: fedora
+base_root_lvm_lv: root

@@ -1,0 +1,26 @@
+---
+- name: Detect BC250 PCI function
+  ansible.builtin.command:
+    argv: [lspci, -Dnnkd, "1002:13fe"]
+  register: bc250_hardware_pci
+  changed_when: false
+  check_mode: false
+
+- name: Require BC250 bound to amdgpu
+  ansible.builtin.assert:
+    that:
+      - bc250_hardware_pci.stdout | length > 0
+      - "bc250_hardware_pci.stdout is search('Kernel driver in use: amdgpu')"
+
+- name: Record stock kernel command line
+  ansible.builtin.command:
+    argv: [cat, /proc/cmdline]
+  register: bc250_hardware_cmdline
+  changed_when: false
+  check_mode: false
+
+- name: Reject unsafe mitigation disablement
+  ansible.builtin.assert:
+    that:
+      - bc250_hardware_cmdline.stdout is not search('mitigations=off')
+    fail_msg: Remove mitigations=off before treating this host as a baseline.

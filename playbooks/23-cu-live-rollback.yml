@@ -1,0 +1,19 @@
+---
+- name: Disable CU persistence and restore factory dispatch
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: false
+  tags: [never, cu_live_rollback]
+  tasks:
+    - name: Require explicit single-host CU rollback target
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == 1
+        fail_msg: >-
+          CU rollback writes live hardware registers and requires exactly one
+          host selected with --limit.
+
+    - name: Apply guarded CU rollback
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: cu_live_rollback.yml

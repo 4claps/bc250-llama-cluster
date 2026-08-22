@@ -1,0 +1,17 @@
+---
+- name: Run preflight checks
+  ansible.builtin.import_playbook: playbooks/00-preflight.yml
+- name: Configure base operating system
+  ansible.builtin.import_playbook: playbooks/10-base.yml
+- name: Establish BC250 hardware baseline
+  ansible.builtin.import_playbook: playbooks/20-hardware.yml
+- name: Configure backend network
+  ansible.builtin.import_playbook: playbooks/30-network.yml
+- name: Configure Vulkan
+  ansible.builtin.import_playbook: playbooks/40-vulkan.yml
+- name: Build llama.cpp
+  ansible.builtin.import_playbook: playbooks/50-llama-cpp.yml
+- name: Configure distributed inference services
+  ansible.builtin.import_playbook: playbooks/60-cluster.yml
+- name: Verify cluster
+  ansible.builtin.import_playbook: playbooks/90-validation.yml

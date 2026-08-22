@@ -1,0 +1,31 @@
+---
+- name: Install Fedora Mesa RADV and Vulkan tools
+  ansible.builtin.dnf:
+    name:
+      - mesa-dri-drivers
+      - mesa-libEGL
+      - mesa-libGL
+      - mesa-vulkan-drivers
+      - vulkan-loader
+      - vulkan-tools
+    state: present
+
+- name: Query headless Vulkan devices
+  ansible.builtin.command:
+    argv: [vulkaninfo, --summary]
+  environment:
+    DISPLAY: ""
+  register: vulkan_summary
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Require hardware RADV GFX1013
+  ansible.builtin.assert:
+    that:
+      - vulkan_summary.stdout is search(vulkan_expected_device_pattern, ignorecase=true)
+      - vulkan_summary.stdout is search('radv', ignorecase=true)
+      - vulkan_summary.stdout is search(vulkan_expected_vendor_id, ignorecase=true)
+      - vulkan_summary.stdout is search(vulkan_expected_device_id, ignorecase=true)
+    fail_msg: A hardware-backed RADV BC250/GFX1013 device was not detected.
+  when: not ansible_check_mode

@@ -1,0 +1,29 @@
+---
+- name: Validate rollback safety gate
+  ansible.builtin.assert:
+    that:
+      - ansible_play_hosts_all | length == 1
+    fail_msg: CU rollback requires exactly one host selected with --limit.
+
+- name: Check CU persistence unit
+  ansible.builtin.stat:
+    path: /etc/systemd/system/bc250-cu-live-manager.service
+  register: bc250_hardware_cu_live_unit
+
+- name: Disable CU boot persistence
+  ansible.builtin.systemd_service:
+    name: "{{ bc250_hardware_cu_live_service_name }}"
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  when: bc250_hardware_cu_live_unit.stat.exists
+
+- name: Restore factory WGP dispatch live
+  ansible.builtin.command:
+    argv: ["{{ bc250_hardware_cu_live_manager_path }}", --yes, stock-dispatch]
+  environment:
+    UMR_ASIC: "{{ bc250_cu_live_umr_asic }}"
+  changed_when: true
+
+- name: Verify factory rollback status
+  ansible.builtin.include_tasks: cu_live_status.yml

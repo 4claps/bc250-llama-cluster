@@ -1,0 +1,60 @@
+---
+- name: Collect Qwen3-Coder-Next fit-planning measurements
+  hosts: bc250_cluster
+  gather_facts: true
+  become: false
+  tags: [validation, qwen3_coder_next, fit]
+  vars:
+    qwen3_coder_next_candidates:
+      - {quant: UD-IQ2_XXS, approximate_size_gb: 23.3, priority: 1}
+      - {quant: UD-IQ1_S, approximate_size_gb: 21.5, priority: 2}
+      - {quant: UD-TQ1_0, approximate_size_gb: 18.9, priority: 3}
+  tasks:
+    - name: Read host memory after baseline boot
+      ansible.builtin.command:
+        argv: [free, --bytes, --wide]
+      register: qwen3_coder_next_host_memory
+      changed_when: false
+      check_mode: false
+
+    - name: Read detailed host memory counters
+      ansible.builtin.command:
+        argv: [cat, /proc/meminfo]
+      register: qwen3_coder_next_meminfo
+      changed_when: false
+      check_mode: false
+
+    - name: Read llama.cpp Vulkan device capacity
+      ansible.builtin.command:
+        argv: ["{{ llama_cpp_current_path }}/bin/llama-cli", --list-devices]
+      register: qwen3_coder_next_llama_devices
+      changed_when: false
+      check_mode: false
+
+    - name: Read Vulkan device and heap information
+      ansible.builtin.command:
+        argv: [vulkaninfo]
+      environment:
+        DISPLAY: ""
+      register: qwen3_coder_next_vulkaninfo
+      changed_when: false
+      check_mode: false
+
+    - name: Report fit-planning measurements
+      ansible.builtin.debug:
+        msg:
+          node: "{{ inventory_hostname }}"
+          host_memory: "{{ qwen3_coder_next_host_memory.stdout_lines }}"
+          host_memory_counters: >-
+            {{ qwen3_coder_next_meminfo.stdout_lines
+               | select('match', '^(MemTotal|MemFree|MemAvailable|Buffers|Cached|SwapTotal|SwapFree):')
+               | list }}
+          llama_devices: "{{ qwen3_coder_next_llama_devices.stdout_lines }}"
+          vulkan_memory_heaps: >-
+            {{ qwen3_coder_next_vulkaninfo.stdout_lines
+               | select('search', 'heap|size|budget|usage', ignorecase=true)
+               | list }}
+          candidate_order: "{{ qwen3_coder_next_candidates }}"
+          next_step: >-
+            Record these values, then follow docs/qwen3-coder-next-fit.md. GGUF
+            size alone is not evidence that a candidate fits.

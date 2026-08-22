@@ -1,0 +1,9 @@
+---
+- name: Read BC250 factory and live CU topology
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: false
+  tags: [hardware, cu_live, status]
+  roles:
+    - role: bc250_hardware
+      tasks_from: cu_live_status.yml  # noqa: var-naming[no-role-prefix]

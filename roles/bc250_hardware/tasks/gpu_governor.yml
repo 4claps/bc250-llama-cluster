@@ -1,0 +1,71 @@
+---
+- name: Install Fedora COPR support
+  ansible.builtin.dnf:
+    name: dnf5-plugins
+    state: present
+
+- name: Check BC250 GPU governor COPR configuration
+  ansible.builtin.stat:
+    path: "{{ bc250_hardware_gpu_governor_copr_repo_file }}"
+  register: bc250_hardware_gpu_governor_copr_repo
+
+- name: Enable BC250 GPU governor COPR
+  community.general.copr:
+    name: "{{ bc250_hardware_gpu_governor_copr }}"
+    state: enabled
+  when: not bc250_hardware_gpu_governor_copr_repo.stat.exists
+
+- name: Install BC250 GPU governor package
+  ansible.builtin.dnf:
+    name: >-
+      {{ bc250_hardware_gpu_governor_package ~
+         (('-' ~ bc250_hardware_gpu_governor_package_version)
+          if bc250_hardware_gpu_governor_package_version | length > 0 else '') }}
+    state: present
+
+- name: Install complete BC250 GPU governor profile
+  ansible.builtin.template:
+    src: cyan-skillfish-governor-smu-config.toml.j2
+    dest: "{{ bc250_hardware_gpu_governor_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart BC250 GPU governor
+
+- name: Create BC250 GPU governor systemd drop-in directory
+  ansible.builtin.file:
+    path: "{{ bc250_hardware_gpu_governor_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: bc250_gpu_governor_performance_mode_enabled | bool
+
+- name: Enable inference performance mode after GPU governor start
+  ansible.builtin.template:
+    src: cyan-skillfish-governor-smu-inference.conf.j2
+    dest: "{{ bc250_hardware_gpu_governor_dropin_dir }}/10-inference-performance.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: bc250_gpu_governor_performance_mode_enabled | bool
+  notify:
+    - Reload systemd for BC250 performance services
+    - Restart BC250 GPU governor
+
+- name: Disable inference performance mode override
+  ansible.builtin.file:
+    path: "{{ bc250_hardware_gpu_governor_dropin_dir }}/10-inference-performance.conf"
+    state: absent
+  when: not bc250_gpu_governor_performance_mode_enabled | bool
+  notify:
+    - Reload systemd for BC250 performance services
+    - Restart BC250 GPU governor
+
+- name: Enable and start BC250 GPU governor
+  ansible.builtin.systemd_service:
+    name: "{{ bc250_hardware_gpu_governor_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode

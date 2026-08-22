@@ -1,0 +1,58 @@
+---
+- name: Validate required inventory values
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in ['bowie', 'crockett']
+      - ansible_host == management_ip
+      - backend_interface_mac is not search('CHANGE_ME')
+      - backend_interface_mac is match('^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - backend_ip_cidr | ansible.utils.ipaddr('address') == backend_ip
+      - (backend_ip | ansible.utils.ipaddr(backend_subnet)) is truthy
+      - llama_cpp_version is not search('CHANGE_ME')
+      - not llama_manage_model_download | bool or llama_model_filename | length > 0
+      - not llama_manage_model_download | bool or llama_model_url | length > 0
+      - not llama_manage_model_download | bool or llama_model_sha256 is match('^[a-fA-F0-9]{64}$')
+      - llama_api_allowed_cidrs | length > 0
+      - llama_api_allowed_cidrs | reject('search', 'CHANGE_ME') | list | length == llama_api_allowed_cidrs | length
+      - not bc250_cu_live_manager_install | bool or bc250_cu_live_manager_url is not search('CHANGE_ME')
+      - not bc250_cu_live_manager_install | bool or bc250_cu_live_manager_sha256 is match('^[a-fA-F0-9]{64}$')
+    fail_msg: Replace all required CHANGE_ME values before deployment.
+
+- name: Validate fixed cluster membership
+  ansible.builtin.assert:
+    that:
+      - groups.llama_coordinator | length == 1
+      - groups.llama_rpc_workers | length == 1
+      - groups.llama_coordinator[0] == 'bowie'
+      - groups.llama_rpc_workers[0] == 'crockett'
+    fail_msg: Bowie must be the sole coordinator and Crockett the sole RPC worker.
+
+- name: Validate target operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Fedora'
+      - ansible_facts.distribution_major_version == '44'
+      - ansible_facts.architecture == 'x86_64'
+    fail_msg: Targets must be Fedora 44 x86_64.
+
+- name: Check BC250 PCI identity
+  ansible.builtin.command:
+    argv: [lspci, -Dnnd, "1002:13fe"]
+  register: preflight_bc250_pci
+  changed_when: false
+  check_mode: false
+
+- name: Check DRM render nodes
+  ansible.builtin.find:
+    paths: /dev/dri
+    patterns: renderD*
+    file_type: any
+    recurse: false
+  register: preflight_render_nodes
+  check_mode: false
+
+- name: Require BC250 and a render node
+  ansible.builtin.assert:
+    that:
+      - preflight_bc250_pci.stdout | length > 0
+      - preflight_render_nodes.matched | int > 0

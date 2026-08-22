@@ -1,0 +1,29 @@
+[Unit]
+Description=Distributed llama.cpp inference coordinator
+Documentation=https://github.com/ggml-org/llama.cpp/tree/master/tools/server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User={{ llama_system_user }}
+Group={{ llama_system_group }}
+SupplementaryGroups=render video
+ExecStart={{ llama_cpp_current_path }}/bin/llama-server{% if llama_model_filename | length > 0 %} --model {{ cluster_llama_model_path }}{% else %} --models-dir {{ llama_model_dir }} --models-max {{ llama_models_max }}{% endif %} --host {{ management_ip }} --port {{ llama_api_port }} --rpc {% for host in groups.llama_rpc_workers %}{{ hostvars[host].backend_ip }}:{{ llama_rpc_port }}{% if not loop.last %},{% endif %}{% endfor %} --gpu-layers {{ llama_gpu_layers }} --split-mode {{ llama_split_mode }} --ctx-size {{ llama_context_size }} --cache-type-k {{ llama_cache_type_k }} --cache-type-v {{ llama_cache_type_v }}{{ (' --tensor-split ' ~ (llama_tensor_split | join(','))) if llama_tensor_split | length > 0 else '' }}
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=300
+TimeoutStopSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadOnlyPaths={{ llama_model_dir }}
+ReadWritePaths={{ llama_state_dir }}
+
+[Install]
+WantedBy=multi-user.target

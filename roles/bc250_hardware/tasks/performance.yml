@@ -1,0 +1,82 @@
+---
+- name: Validate BC250 performance profile selection
+  ansible.builtin.assert:
+    that:
+      - bc250_performance_profile in bc250_hardware_performance_profiles
+      - bc250_performance_profile not in ['extreme', 'extreme_i', 'extreme_ii', 'extreme_iii']
+    fail_msg: >-
+      Select one of stock, mild, mild_undervolt, moderate, strong, or aggressive.
+      Extreme profiles are intentionally unsupported.
+
+- name: Select BC250 performance profile
+  ansible.builtin.set_fact:
+    bc250_hardware_performance_profile: >-
+      {{ bc250_hardware_performance_profiles[bc250_performance_profile] }}
+
+- name: Configure BC250 CPU governor
+  ansible.builtin.import_tasks: cpu_governor.yml
+  when: bc250_cpu_governor_enabled | bool
+
+- name: Configure BC250 GPU governor
+  ansible.builtin.import_tasks: gpu_governor.yml
+  when: bc250_gpu_governor_enabled | bool
+
+- name: Apply performance service changes before validation
+  ansible.builtin.meta: flush_handlers
+
+- name: Read BC250 performance service enablement
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ item }}"]
+  loop: >-
+    {{ ([bc250_hardware_cpu_governor_service]
+        if bc250_cpu_governor_enabled | bool else [])
+       + ([bc250_hardware_gpu_governor_service]
+          if bc250_gpu_governor_enabled | bool else []) }}
+  register: bc250_hardware_performance_enabled
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Read BC250 performance service activity
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ item }}"]
+  loop: >-
+    {{ ([bc250_hardware_cpu_governor_service]
+        if bc250_cpu_governor_enabled | bool else [])
+       + ([bc250_hardware_gpu_governor_service]
+          if bc250_gpu_governor_enabled | bool else []) }}
+  register: bc250_hardware_performance_active
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require enabled and active BC250 performance services
+  ansible.builtin.assert:
+    that:
+      - bc250_hardware_performance_enabled.results | map(attribute='rc') | max == 0
+      - bc250_hardware_performance_active.results | map(attribute='rc') | max == 0
+  when: not ansible_check_mode
+
+- name: Read BC250 GPU governor performance mode
+  ansible.builtin.command:
+    argv:
+      - busctl
+      - --system
+      - get-property
+      - com.cyanskillfish.Governor
+      - /com/cyanskillfish/Governor
+      - com.cyanskillfish.Governor.PerformanceMode
+      - Enabled
+  register: bc250_hardware_gpu_performance_mode
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - bc250_gpu_governor_enabled | bool
+    - bc250_gpu_governor_performance_mode_enabled | bool
+
+- name: Require BC250 GPU inference performance mode
+  ansible.builtin.assert:
+    that:
+      - bc250_hardware_gpu_performance_mode.stdout == 'b true'
+  when:
+    - not ansible_check_mode
+    - bc250_gpu_governor_enabled | bool
+    - bc250_gpu_governor_performance_mode_enabled | bool

@@ -1,0 +1,12 @@
+---
+management_ip: 192.0.2.170
+backend_interface_mac: CHANGE_ME
+backend_ip: 10.250.0.1
+backend_ip_cidr: 10.250.0.1/30
+
+# Populate only with a WGP table independently tested on this physical board.
+bc250_cu_live_target_wgps: []
+bc250_cu_live_persistence_enabled: false
+bc250_cu_live_configuration_validated: false
+bc250_cu_live_validated_wgps: []
+bc250_cu_live_validation_record: ""

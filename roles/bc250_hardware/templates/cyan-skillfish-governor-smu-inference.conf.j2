@@ -1,0 +1,5 @@
+[Service]
+# llama.cpp Vulkan compute does not reliably assert the GUI_ACTIVE bit sampled
+# by busy-flag mode. Upstream performance mode holds the profile maximum while
+# retaining the governor's configured thermal throttling.
+ExecStartPost=/usr/bin/bash -c 'for i in {1..30}; do /usr/sbin/cyan-skillfish-performance-mode --on && exit 0; sleep 0.2; done; exit 1'

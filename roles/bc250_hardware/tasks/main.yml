@@ -1,0 +1,21 @@
+---
+- name: Detect BC250 hardware
+  ansible.builtin.import_tasks: detect.yml
+
+- name: Install CU live manager without changing dispatch
+  ansible.builtin.import_tasks: cu_live_manager.yml
+  when: bc250_cu_live_manager_install | bool
+
+- name: Read CU topology after installation
+  ansible.builtin.import_tasks: cu_live_status.yml
+  when:
+    - bc250_cu_live_manager_install | bool
+    - not ansible_check_mode
+
+- name: Configure BC250 TTM inference memory limits
+  ansible.builtin.import_tasks: ttm.yml
+  when: bc250_ttm_enabled | bool
+
+- name: Configure BC250 performance profile
+  ansible.builtin.import_tasks: performance.yml
+  when: bc250_cpu_governor_enabled | bool or bc250_gpu_governor_enabled | bool

@@ -1,0 +1,14 @@
+---
+- name: Configure llama.cpp RPC workers
+  hosts: llama_rpc_workers
+  gather_facts: true
+  tags: [cluster, rpc]
+  roles:
+    - role: cluster
+
+- name: Configure llama.cpp coordinator
+  hosts: llama_coordinator
+  gather_facts: true
+  tags: [cluster, coordinator]
+  roles:
+    - role: cluster

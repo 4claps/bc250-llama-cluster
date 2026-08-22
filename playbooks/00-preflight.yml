@@ -1,0 +1,8 @@
+---
+- name: Validate BC250 cluster prerequisites
+  hosts: bc250_cluster
+  become: false
+  gather_facts: true
+  tags: [preflight]
+  roles:
+    - role: preflight

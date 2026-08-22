@@ -1,0 +1,137 @@
+---
+- name: Validate backend network inventory
+  ansible.builtin.assert:
+    that:
+      - backend_interface_mac is not search('CHANGE_ME')
+      - backend_interface_mac is match('^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - backend_ip_cidr | ansible.utils.ipaddr('address') == backend_ip
+      - (backend_ip | ansible.utils.ipaddr(backend_subnet)) is truthy
+
+- name: Read permanent MAC address for each interface
+  ansible.builtin.command:
+    argv: [ethtool, -P, "{{ item }}"]
+  loop: "{{ ansible_facts.interfaces }}"
+  register: network_permanent_macs
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Select backend interface by permanent MAC
+  ansible.builtin.set_fact:
+    network_backend_interface_matches: >-
+      {{ network_permanent_macs.results
+         | selectattr('stdout', 'search', backend_interface_mac | lower)
+         | map(attribute='item') | list }}
+
+- name: Require one non-management backend interface
+  ansible.builtin.assert:
+    that:
+      - network_backend_interface_matches | length == 1
+      - network_backend_interface_matches[0] != ansible_facts.default_ipv4.interface
+    fail_msg: >-
+      The permanent backend MAC must resolve to exactly one interface and must
+      not be the management/default-route interface.
+
+- name: Record backend interface name
+  ansible.builtin.set_fact:
+    network_backend_interface_name: "{{ network_backend_interface_matches[0] }}"
+
+- name: Record management default route before changes
+  ansible.builtin.command:
+    argv: [ip, -4, route, show, default]
+  register: network_default_route_before
+  changed_when: false
+  check_mode: false
+
+- name: Select management-interface default routes
+  ansible.builtin.set_fact:
+    network_management_default_routes_before: >-
+      {{ network_default_route_before.stdout_lines
+         | select('search', ' dev ' ~ ansible_facts.default_ipv4.interface ~ ' ')
+         | list }}
+
+- name: Require an existing management default route
+  ansible.builtin.assert:
+    that:
+      - network_management_default_routes_before | length > 0
+
+- name: Create dedicated backend firewalld zone
+  ansible.posix.firewalld:
+    zone: "{{ backend_firewall_zone }}"
+    state: present
+    permanent: true
+  notify: Reload firewalld
+
+- name: Configure gateway-free backend connection
+  community.general.nmcli:
+    conn_name: "{{ backend_connection_name }}"
+    type: ethernet
+    ifname: "{{ network_backend_interface_name }}"
+    mac: "{{ backend_interface_mac }}"
+    ip4: ["{{ backend_ip_cidr }}"]
+    method4: manual
+    never_default4: true
+    dns4_ignore_auto: true
+    gw4_ignore_auto: true
+    method6: disabled
+    mtu: "{{ backend_mtu }}"
+    zone: "{{ backend_firewall_zone }}"
+    autoconnect: true
+    state: present
+  notify: Activate backend connection
+
+- name: Apply network changes before validation
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for backend address
+  ansible.builtin.command:
+    argv: [ip, -4, address, show, dev, "{{ network_backend_interface_name }}"]
+  register: network_backend_address
+  retries: 10
+  delay: 1
+  until: network_backend_address.stdout is search(backend_ip)
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Read negotiated backend link speed
+  ansible.builtin.command:
+    argv: [cat, "/sys/class/net/{{ network_backend_interface_name }}/speed"]
+  register: network_backend_speed
+  changed_when: false
+  check_mode: false
+
+- name: Require expected backend link speed
+  ansible.builtin.assert:
+    that:
+      - network_backend_speed.stdout | int >= backend_minimum_link_mbps | int
+  when: not ansible_check_mode
+
+- name: Verify backend peer route
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -4
+      - route
+      - get
+      - "{{ hostvars[item].backend_ip }}"
+      - from
+      - "{{ backend_ip }}"
+  loop: "{{ groups.bc250_cluster | reject('equalto', inventory_hostname) | list }}"
+  register: network_backend_routes
+  changed_when: false
+  failed_when: >-
+    network_backend_interface_name not in network_backend_routes.stdout or
+    backend_ip not in network_backend_routes.stdout
+  when: not ansible_check_mode
+
+- name: Verify management default route is unchanged
+  ansible.builtin.command:
+    argv: [ip, -4, route, show, default]
+  register: network_default_route_after
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    network_management_default_routes_before
+      | difference(network_default_route_after.stdout_lines) | length > 0 or
+    network_backend_interface_name in network_default_route_after.stdout
+  when: not ansible_check_mode

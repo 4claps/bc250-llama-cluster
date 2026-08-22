@@ -1,0 +1,73 @@
+---
+vulkan_expected_vendor_id: "0x1002"
+vulkan_expected_device_id: "0x13fe"
+vulkan_expected_device_pattern: "BC-250|GFX1013"
+vulkan_device: Vulkan0
+
+backend_connection_name: bc250-backend
+backend_subnet: 10.250.0.0/30
+backend_mtu: 1500
+backend_minimum_link_mbps: 2500
+backend_minimum_throughput_mbps: 1800
+backend_iperf_port: 5201
+backend_firewall_zone: bc250-backend
+management_firewall_zone: FedoraServer
+
+llama_cpp_repo: https://github.com/ggml-org/llama.cpp.git
+llama_cpp_version: d775b8967a46d8beb110d444aa3b8938179e0dd8
+llama_cpp_build_type: Release
+llama_cpp_source_dir: /usr/local/src/llama.cpp
+llama_cpp_build_dir: /usr/local/src/llama.cpp-build
+llama_cpp_install_root: /opt/llama.cpp
+llama_cpp_current_path: /opt/llama.cpp/current
+llama_cpp_ggml_native: null
+llama_cpp_cmake_options:
+  GGML_VULKAN: "ON"
+  GGML_RPC: "ON"
+
+llama_system_user: llama
+llama_system_group: llama
+llama_state_dir: /var/lib/llama.cpp
+llama_model_dir: /var/lib/llama.cpp/models
+llama_rpc_cache_dir: /var/cache/llama.cpp/rpc
+llama_model_filename: ""
+llama_model_sha256: ""
+llama_model_url: ""
+llama_manage_model_download: false
+llama_models_max: 1
+
+llama_rpc_port: 50052
+llama_rpc_cache_enabled: true
+llama_api_port: 8080
+llama_api_allowed_cidrs:
+  - 192.0.2.0/24
+llama_gpu_layers: all
+llama_context_size: 8192
+llama_split_mode: layer
+llama_tensor_split: []
+llama_cache_type_k: q8_0
+llama_cache_type_v: q8_0
+
+# Safe public defaults: install the read-only/status tool, but do not change or
+# persist CU routing. Never copy another board's WGP table into these values.
+bc250_cu_live_manager_install: true
+bc250_cu_live_manager_url: >-
+  https://raw.githubusercontent.com/WinnieLV/bc250-cu-live-manager/a929085d791f126ce76a60eb609610820fb08066/bc250-cu-live-manager.sh
+bc250_cu_live_manager_sha256: 304d0b51838ec4ffc80c56894c4867a04523bf1ba27e51f662cbfc79616e442d
+bc250_cu_live_test_enabled: false
+bc250_cu_live_persistence_enabled: false
+bc250_cu_live_configuration_validated: false
+bc250_cu_live_validated_wgps: []
+bc250_cu_live_validation_record: ""
+bc250_cu_live_umr_instance: null
+bc250_cu_live_umr_asic: cyan_skillfish.gfx1013
+
+# Safe public defaults retain stock clocks and Fedora's stock TTM behavior.
+# Enable only after following the per-board qualification documentation.
+bc250_performance_profile: stock
+bc250_cpu_governor_enabled: false
+bc250_gpu_governor_enabled: false
+bc250_gpu_governor_performance_mode_enabled: false
+bc250_ttm_enabled: false
+bc250_ttm_pages_limit: 3014656
+bc250_ttm_page_pool_size: 3014656

@@ -1,0 +1,13 @@
+---
+# Copy inventories/example to the ignored inventories/production directory,
+# then replace every CHANGE_ME value before connecting to real hardware.
+ansible_user: CHANGE_ME
+ansible_become: true
+ansible_python_interpreter: /usr/bin/python3
+
+cluster_timezone: Etc/UTC
+base_apply_updates: true
+base_reboot_automatically: false
+base_expand_root_lvm_enabled: false
+base_root_lvm_vg: fedora
+base_root_lvm_lv: root

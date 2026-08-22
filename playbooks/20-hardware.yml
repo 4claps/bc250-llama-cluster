@@ -1,0 +1,8 @@
+---
+- name: Configure BC250 hardware baseline and performance profile
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: true
+  tags: [hardware]
+  roles:
+    - role: bc250_hardware

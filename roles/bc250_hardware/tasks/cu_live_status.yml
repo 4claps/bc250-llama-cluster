@@ -1,0 +1,16 @@
+---
+- name: Read factory and current WGP topology
+  ansible.builtin.command:
+    argv: >-
+      {{ [bc250_hardware_cu_live_manager_path]
+         + ((bc250_cu_live_umr_instance is not none)
+            | ternary(['--umr-instance', bc250_cu_live_umr_instance | string], []))
+         + ['status'] }}
+  environment:
+    UMR_ASIC: "{{ bc250_cu_live_umr_asic }}"
+  register: bc250_hardware_cu_live_status
+  changed_when: false
+
+- name: Show per-board CU topology
+  ansible.builtin.debug:
+    var: bc250_hardware_cu_live_status.stdout_lines

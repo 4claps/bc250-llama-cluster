@@ -1,0 +1,21 @@
+---
+- name: Reload llama.cpp systemd units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Restart llama.cpp RPC server
+  ansible.builtin.systemd_service:
+    name: llama-rpc-server.service
+    state: restarted
+  when:
+    - inventory_hostname in groups.llama_rpc_workers
+    - not ansible_check_mode
+
+- name: Restart llama.cpp coordinator
+  ansible.builtin.systemd_service:
+    name: llama-server.service
+    state: restarted
+  when:
+    - inventory_hostname in groups.llama_coordinator
+    - not ansible_check_mode

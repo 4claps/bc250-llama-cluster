@@ -1,0 +1,130 @@
+---
+- name: Validate BC250 TTM configuration
+  ansible.builtin.assert:
+    that:
+      - bc250_ttm_pages_limit | int > 0
+      - bc250_ttm_page_pool_size | int > 0
+    fail_msg: BC250 TTM page limits must be positive integers.
+
+- name: Read installed Fedora kernel arguments
+  ansible.builtin.command:
+    argv: [grubby, --info=ALL]
+  register: bc250_hardware_ttm_grubby_before
+  changed_when: false
+  check_mode: false
+
+- name: Read kernel arguments inherited by future kernels
+  ansible.builtin.slurp:
+    src: /etc/kernel/cmdline
+  register: bc250_hardware_ttm_kernel_cmdline_before
+
+- name: Count existing BC250 TTM kernel arguments
+  ansible.builtin.set_fact:
+    bc250_hardware_ttm_kernel_count: >-
+      {{ bc250_hardware_ttm_grubby_before.stdout_lines
+         | select('match', '^kernel=') | list | length }}
+    bc250_hardware_ttm_pages_count: >-
+      {{ bc250_hardware_ttm_grubby_before.stdout
+         | regex_findall('ttm[.]pages_limit=') | length }}
+    bc250_hardware_ttm_pages_expected_count: >-
+      {{ bc250_hardware_ttm_grubby_before.stdout
+         | regex_findall('ttm[.]pages_limit=' ~ (bc250_ttm_pages_limit | string)
+                         ~ '(?: |")') | length }}
+    bc250_hardware_ttm_pool_count: >-
+      {{ bc250_hardware_ttm_grubby_before.stdout
+         | regex_findall('ttm[.]page_pool_size=') | length }}
+    bc250_hardware_ttm_pool_expected_count: >-
+      {{ bc250_hardware_ttm_grubby_before.stdout
+         | regex_findall('ttm[.]page_pool_size=' ~ (bc250_ttm_page_pool_size | string)
+                         ~ '(?: |")') | length }}
+    bc250_hardware_ttm_future_cmdline: >-
+      {{ bc250_hardware_ttm_kernel_cmdline_before.content | b64decode | trim }}
+
+- name: Determine whether BC250 TTM kernel arguments require reconciliation
+  ansible.builtin.set_fact:
+    bc250_hardware_ttm_reconcile_required: >-
+      {{
+        (bc250_hardware_ttm_kernel_count | int) == 0
+        or
+        (bc250_hardware_ttm_pages_count | int) != (bc250_hardware_ttm_kernel_count | int)
+        or
+        (bc250_hardware_ttm_pages_expected_count | int) != (bc250_hardware_ttm_kernel_count | int)
+        or
+        (bc250_hardware_ttm_pool_count | int) != (bc250_hardware_ttm_kernel_count | int)
+        or
+        (bc250_hardware_ttm_pool_expected_count | int) != (bc250_hardware_ttm_kernel_count | int)
+        or
+        (bc250_hardware_ttm_future_cmdline
+         | regex_findall('ttm[.]pages_limit=')) | length != 1
+        or
+        (bc250_hardware_ttm_future_cmdline
+         | regex_findall('ttm[.]pages_limit=' ~ (bc250_ttm_pages_limit | string)
+                         ~ '(?: |$)')) | length != 1
+        or
+        (bc250_hardware_ttm_future_cmdline
+         | regex_findall('ttm[.]page_pool_size=')) | length != 1
+        or
+        (bc250_hardware_ttm_future_cmdline
+         | regex_findall('ttm[.]page_pool_size=' ~ (bc250_ttm_page_pool_size | string)
+                         ~ '(?: |$)')) | length != 1
+      }}
+
+- name: Reconcile BC250 TTM arguments in all BLS entries and future kernels
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --update-kernel=ALL
+      - --remove-args=ttm.pages_limit ttm.page_pool_size
+      - >-
+        --args=ttm.pages_limit={{ bc250_ttm_pages_limit }}
+        ttm.page_pool_size={{ bc250_ttm_page_pool_size }}
+  when: bc250_hardware_ttm_reconcile_required | bool
+  changed_when: true
+  notify: Report BC250 TTM reboot requirement
+
+- name: Read managed Fedora kernel arguments
+  ansible.builtin.command:
+    argv: [grubby, --info=ALL]
+  register: bc250_hardware_ttm_grubby_after
+  changed_when: false
+  check_mode: false
+
+- name: Read managed future-kernel command line
+  ansible.builtin.slurp:
+    src: /etc/kernel/cmdline
+  register: bc250_hardware_ttm_kernel_cmdline_after
+
+- name: Verify persistent BC250 TTM kernel arguments
+  ansible.builtin.assert:
+    that:
+      - >-
+        (bc250_hardware_ttm_grubby_after.stdout
+         | regex_findall('ttm[.]pages_limit=')) | length
+        == (bc250_hardware_ttm_grubby_after.stdout
+            | regex_findall('(?m)^kernel=')) | length
+      - >-
+        (bc250_hardware_ttm_grubby_after.stdout
+         | regex_findall('ttm[.]pages_limit=' ~ (bc250_ttm_pages_limit | string)
+                         ~ '(?= |"|$)')) | length
+        == (bc250_hardware_ttm_grubby_after.stdout
+            | regex_findall('(?m)^kernel=')) | length
+      - >-
+        (bc250_hardware_ttm_grubby_after.stdout
+         | regex_findall('ttm[.]page_pool_size=')) | length
+        == (bc250_hardware_ttm_grubby_after.stdout
+            | regex_findall('(?m)^kernel=')) | length
+      - >-
+        (bc250_hardware_ttm_grubby_after.stdout
+         | regex_findall('ttm[.]page_pool_size=' ~ (bc250_ttm_page_pool_size | string)
+                         ~ '(?= |"|$)')) | length
+        == (bc250_hardware_ttm_grubby_after.stdout
+            | regex_findall('(?m)^kernel=')) | length
+      - >-
+        ((bc250_hardware_ttm_kernel_cmdline_after.content | b64decode)
+         | regex_findall('ttm[.]pages_limit=' ~ (bc250_ttm_pages_limit | string)
+                         ~ '(?= |\\n|$)')) | length == 1
+      - >-
+        ((bc250_hardware_ttm_kernel_cmdline_after.content | b64decode)
+         | regex_findall('ttm[.]page_pool_size=' ~ (bc250_ttm_page_pool_size | string)
+                         ~ '(?= |\\n|$)')) | length == 1
+    fail_msg: Fedora BLS entries do not contain exactly one approved BC250 TTM argument pair.

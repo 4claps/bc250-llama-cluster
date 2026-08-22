@@ -1,0 +1,10 @@
+---
+- name: Reload firewalld
+  ansible.builtin.systemd_service:
+    name: firewalld.service
+    state: reloaded
+
+- name: Activate backend connection
+  ansible.builtin.command:
+    argv: [nmcli, connection, up, "{{ backend_connection_name }}"]
+  changed_when: true

@@ -1,0 +1,91 @@
+---
+- name: Validate each BC250 node
+  hosts: bc250_cluster
+  gather_facts: true
+  tags: [validation]
+  roles:
+    - role: validation
+      when: not ansible_check_mode
+  tasks:
+    - name: Explain runtime validation in check mode
+      ansible.builtin.debug:
+        msg: >-
+          Runtime GPU, Vulkan, service, RPC, health, and bandwidth checks are
+          deferred because check mode does not install or start prerequisites.
+      when: ansible_check_mode
+
+- name: Temporarily permit iperf from Bowie on Crockett backend
+  hosts: backend_bandwidth_server
+  gather_facts: false
+  tags: [validation, bandwidth]
+  tasks:
+    - name: Add temporary iperf rich rule
+      ansible.posix.firewalld:
+        zone: "{{ backend_firewall_zone }}"
+        rich_rule: >-
+          rule family="ipv4"
+          source address="{{ hostvars[groups.llama_coordinator[0]].backend_ip }}/32"
+          port port="{{ backend_iperf_port }}" protocol="tcp" accept
+        permanent: false
+        immediate: true
+        state: enabled
+      when: not ansible_check_mode
+
+    - name: Start one-shot backend bandwidth server
+      ansible.builtin.command:
+        argv: [iperf3, --server, --one-off, --bind, "{{ backend_ip }}", --port, "{{ backend_iperf_port | string }}"]
+      async: 45
+      poll: 0
+      changed_when: false
+      when: not ansible_check_mode
+
+- name: Measure dedicated backend bandwidth from Bowie
+  hosts: llama_coordinator
+  become: false
+  gather_facts: false
+  tags: [validation, bandwidth]
+  tasks:
+    - name: Run backend iperf test
+      ansible.builtin.command:
+        argv:
+          - iperf3
+          - --client
+          - "{{ hostvars[groups.backend_bandwidth_server[0]].backend_ip }}"
+          - --bind
+          - "{{ backend_ip }}"
+          - --port
+          - "{{ backend_iperf_port | string }}"
+          - --time
+          - "10"
+          - --json
+      register: validation_iperf
+      changed_when: false
+      retries: 5
+      delay: 2
+      until: validation_iperf.rc == 0
+      when: not ansible_check_mode
+
+    - name: Require expected backend throughput
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((validation_iperf.stdout | from_json).end.sum_received.bits_per_second
+             | float / 1000000) >= backend_minimum_throughput_mbps | float
+      when: not ansible_check_mode
+
+- name: Remove temporary iperf firewall access
+  hosts: backend_bandwidth_server
+  gather_facts: false
+  tags: [validation, bandwidth]
+  tasks:
+    - name: Remove temporary iperf rich rule
+      ansible.posix.firewalld:
+        zone: "{{ backend_firewall_zone }}"
+        rich_rule: >-
+          rule family="ipv4"
+          source address="{{ hostvars[groups.llama_coordinator[0]].backend_ip }}/32"
+          port port="{{ backend_iperf_port }}" protocol="tcp" accept
+        permanent: false
+        immediate: true
+        state: disabled
+      when: not ansible_check_mode

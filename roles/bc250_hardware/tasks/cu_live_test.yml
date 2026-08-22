@@ -1,0 +1,73 @@
+---
+- name: Validate explicit temporary CU test request
+  ansible.builtin.assert:
+    that:
+      - bc250_cu_live_test_enabled | bool
+      - ansible_play_hosts_all | length == 1
+      - bc250_cu_live_target_wgps | length > 0
+      - bc250_cu_live_target_wgps | unique | length == bc250_cu_live_target_wgps | length
+      - bc250_cu_live_target_wgps | difference(bc250_hardware_cu_live_all_wgps) | length == 0
+      - not bc250_cu_live_persistence_enabled | bool
+    fail_msg: >-
+      CU testing requires one --limit host, an exact valid target WGP list,
+      bc250_cu_live_test_enabled=true, and persistence disabled.
+
+- name: Collect service state before live test
+  ansible.builtin.service_facts:
+
+- name: Stop llama.cpp services during register changes
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - llama-server.service
+    - llama-rpc-server.service
+  when: item in ansible_facts.services
+
+- name: Apply exact candidate WGP routing with stock rollback on failure
+  block:
+    - name: Begin from factory dispatch
+      ansible.builtin.command:
+        argv: ["{{ bc250_hardware_cu_live_manager_path }}", --yes, stock-dispatch]
+      environment:
+        UMR_ASIC: "{{ bc250_cu_live_umr_asic }}"
+      changed_when: true
+
+    - name: Disable WGPs outside the candidate table
+      ansible.builtin.command:
+        argv: >-
+          {{ [bc250_hardware_cu_live_manager_path, '--yes', 'disable-wgp']
+             + (bc250_hardware_cu_live_all_wgps | difference(bc250_cu_live_target_wgps)) }}
+      environment:
+        UMR_ASIC: "{{ bc250_cu_live_umr_asic }}"
+      changed_when: true
+      when: bc250_hardware_cu_live_all_wgps | difference(bc250_cu_live_target_wgps) | length > 0
+
+    - name: Enable every WGP in the candidate table
+      ansible.builtin.command:
+        argv: >-
+          {{ [bc250_hardware_cu_live_manager_path, '--yes', 'enable-wgp']
+             + bc250_cu_live_target_wgps }}
+      environment:
+        UMR_ASIC: "{{ bc250_cu_live_umr_asic }}"
+      changed_when: true
+
+    - name: Read back temporary topology
+      ansible.builtin.include_tasks: cu_live_status.yml
+  rescue:
+    - name: Restore factory dispatch after failed test application
+      ansible.builtin.command:
+        argv: ["{{ bc250_hardware_cu_live_manager_path }}", --yes, stock-dispatch]
+      environment:
+        UMR_ASIC: "{{ bc250_cu_live_umr_asic }}"
+      changed_when: true
+
+    - name: Stop after safe rollback
+      ansible.builtin.fail:
+        msg: Candidate WGP application failed; factory dispatch was restored.
+
+- name: Require external stress and benchmark validation before persistence
+  ansible.builtin.debug:
+    msg: >-
+      Candidate dispatch is live only until reboot. Run the validation and
+      benchmark plans, then manually promote this exact table in host_vars.

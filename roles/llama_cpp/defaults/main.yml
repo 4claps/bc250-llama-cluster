@@ -1,0 +1,8 @@
+---
+llama_cpp_current_path: "{{ llama_cpp_install_root }}/current"
+llama_cpp_release_path: "{{ llama_cpp_install_root }}/releases/{{ llama_cpp_version }}"
+llama_cpp_required_binaries:
+  - llama-bench
+  - llama-cli
+  - llama-server
+  - ggml-rpc-server

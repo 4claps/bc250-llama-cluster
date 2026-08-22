@@ -1,0 +1,8 @@
+---
+- name: Configure dedicated backend network
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: true
+  tags: [network]
+  roles:
+    - role: network

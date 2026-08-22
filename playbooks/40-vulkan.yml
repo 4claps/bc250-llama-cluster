@@ -1,0 +1,7 @@
+---
+- name: Configure Fedora RADV Vulkan
+  hosts: bc250_cluster
+  gather_facts: true
+  tags: [vulkan]
+  roles:
+    - role: vulkan

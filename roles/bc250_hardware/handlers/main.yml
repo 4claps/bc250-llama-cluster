@@ -1,0 +1,31 @@
+---
+- name: Report BC250 TTM reboot requirement
+  ansible.builtin.debug:
+    msg: >-
+      Persistent BC250 TTM kernel arguments changed. Reboot this node before
+      treating the live TTM/Vulkan capacity as validated.
+
+- name: Reload systemd for BC250 CU restore
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart BC250 CU restore
+  ansible.builtin.systemd_service:
+    name: bc250-cu-live-manager.service
+    state: restarted
+
+- name: Reload systemd for BC250 performance services
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart BC250 CPU governor
+  ansible.builtin.systemd_service:
+    name: bc250-smu-oc.service
+    state: restarted
+  when: not ansible_check_mode
+
+- name: Restart BC250 GPU governor
+  ansible.builtin.systemd_service:
+    name: cyan-skillfish-governor-smu.service
+    state: restarted
+  when: not ansible_check_mode

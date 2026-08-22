@@ -1,0 +1,7 @@
+---
+- name: Configure base operating system
+  hosts: bc250_cluster
+  gather_facts: true
+  tags: [base]
+  roles:
+    - role: base

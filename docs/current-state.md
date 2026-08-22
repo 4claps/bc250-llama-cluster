@@ -1,0 +1,142 @@
+# Validated private deployment state
+
+Last verified: 2026-08-22.
+
+## Nodes and hardware
+
+| Node | Role | Management | Backend | Active CUs | RAM | GPU memory target |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bowie | llama.cpp coordinator | `10.0.0.170` | `10.250.0.1/30` | 40/40 | ~14 GiB | 512 MiB VRAM + ~11.5 GiB GTT |
+| Crockett | llama.cpp RPC worker | `10.0.0.171` | `10.250.0.2/30` | 40/40 | ~14 GiB | 512 MiB VRAM + ~11.5 GiB GTT |
+
+The baseline intentionally uses the Ansible-managed kernel arguments
+`ttm.pages_limit=3014656` and `ttm.page_pool_size=3014656`. At 4 KiB per page,
+the TTM limit is exactly 12,348,030,976 bytes (11.5 GiB) of GTT. Together with
+512 MiB of hardware VRAM, this produces approximately 12.0 GiB of
+Vulkan-visible capacity per node. GTT is GPU-addressable shared system RAM, not
+additional dedicated VRAM, and remains in contention with Fedora and host
+processes.
+
+Without these arguments, the Fedora kernel's TTM initialization would use
+approximately half of the installed system RAM and expose only about 7.9 GiB
+total per node after adding hardware VRAM. The larger inference-specific limit
+is required for the validated large-model and 64K-context workloads. Those
+tests completed without allocation failures, VM faults, GPU resets, ring
+timeouts, or new MCEs. The operator originally applied the two arguments
+manually with `grubby --update-kernel=ALL` on August 22, 2026; the
+`bc250_hardware` role now adopts the exact tested values through Fedora's
+BLS-compatible mechanism so current and future kernel entries remain
+reproducible. No UMA firmware setting is changed.
+
+The 40-CU tables are enabled by `bc250-cu-live-manager.service` and were
+verified after separate reboots. The rollback playbook remains available if a
+board later proves unstable under longer workloads.
+
+Both Fedora root logical volumes and their XFS filesystems consume the full
+235.89 GiB `fedora` volume group. The base role performs this expansion only
+when `base_expand_root_lvm_enabled` is true and free extents remain.
+
+## Performance profile
+
+Both nodes run the Ansible-managed `moderate` profile. The CPU SMU boot profile
+is 3500 MHz, scale `-22`, and an 80°C maximum. The GPU governor uses the complete
+upstream 500–1750 MHz safe-point curve, whose 1750 MHz point is 925 mV, with
+80°C throttling and 75°C recovery. `bc250-smu-oc.service` and
+`cyan-skillfish-governor-smu.service` are enabled and active on both nodes.
+Because llama.cpp Vulkan compute does not reliably assert the graphics
+`GUI_ACTIVE` bit used by upstream `busy-flag` sampling, the governor's upstream
+D-Bus performance mode holds the approved 1750 MHz ceiling while retaining
+thermal throttling.
+
+The known-good, cache-cleared benchmark used `Qwen3-30B-A3B-Q4_K_M`, an 8,192
+token context, automatic layer split, Bowie local Vulkan plus Crockett RPC
+Vulkan, and 1,024 generated tokens:
+
+| Metric | Stock | Moderate | Change |
+| --- | ---: | ---: | ---: |
+| Prompt processing | 48.31 tokens/s | 72.48 tokens/s | +50.03% |
+| Generation | 71.47 tokens/s | 77.77 tokens/s | +8.81% |
+| Bowie peak | 1500 MHz, 48°C, 78.9 W | 1750 MHz, 49°C, 85.39 W | Stable |
+| Crockett peak | 1500 MHz, 65°C, 85.2 W | 1750 MHz, 66°C, 80.34 W | Stable |
+
+No thermal throttling, GPU reset, VM fault, ring timeout, allocation failure, or
+new MCE was observed during the Moderate run.
+
+The baseline retains the stock Fedora kernel and Mesa/RADV. Apart from the
+documented TTM command-line limits, it has no UMA modification, CPU core unlock,
+GFX1013 compute-queue patch, or other custom kernel/amdgpu change.
+
+## llama.cpp deployment
+
+- Commit: `d775b8967a46d8beb110d444aa3b8938179e0dd8`
+- Build: Vulkan and RPC enabled, native upstream default, vCPU-based parallelism
+- Active release: `/opt/llama.cpp/releases/d775b8967a46d8beb110d444aa3b8938179e0dd8`
+- Bowie API: `http://10.0.0.170:8080`
+- Crockett RPC: `10.250.0.2:50052`, backend-only
+- Model split: automatic layer split over Bowie `Vulkan0` and Crockett RPC `Vulkan0`
+
+The installed benchmark model is intentionally not tracked by Git:
+
+- Model: `Qwen3-30B-A3B-Q4_K_M`
+- Path on Bowie: `/var/lib/llama.cpp/models/Qwen3-30B-A3B-Q4_K_M.gguf`
+- Size: 18,556,685,824 bytes (18.56 GB / 17.28 GiB)
+- SHA-256: `0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5`
+- Source: `Qwen/Qwen3-30B-A3B-GGUF`
+
+The completed Hermes bake-off recommends
+`Qwen3-Coder-30B-A3B-Instruct-Q4_K_M` with a 65,536-token context, Q8_0 K/V
+cache, and automatic layer split. `Qwen3-Coder-Next-UD-IQ1_S` also loaded and
+ran at 64K, but its tighter memory margin, slower generation, and aggressive
+quantization make it the fallback rather than the default. Hermes-4-14B is
+limited to 40,960 tokens and does not meet the intended Hermes requirement.
+
+The 64K Qwen3-Coder-30B run was functionally successful, but Crockett reached
+approximately 90°C and throttled while Bowie stayed substantially cooler.
+Thermal-interface replacement, a rear heatsink, and increased physical board
+separation are planned. Sustained thermal qualification remains pending a rerun
+after those physical cooling improvements; no software profile reduction or
+thermal-limit increase is being used to conceal the result.
+
+Router mode discovers models at service startup. Restart
+`llama-server.service` after adding another GGUF to the model directory.
+
+## Validation and operations
+
+Run local repository checks:
+
+```bash
+ansible-inventory -i inventories/production/hosts.yml --graph
+ansible-playbook -i inventories/production/hosts.yml site.yml --syntax-check
+ansible-lint
+```
+
+Run live cluster validation:
+
+```bash
+ansible-playbook -i inventories/production/hosts.yml \
+  playbooks/90-validation.yml
+```
+
+Read current CU routing:
+
+```bash
+ansible-playbook -i inventories/production/hosts.yml \
+  playbooks/21-cu-live-status.yml
+```
+
+Rollback one board to stock dispatch if needed:
+
+```bash
+ansible-playbook -i inventories/production/hosts.yml \
+  playbooks/23-cu-live-rollback.yml --limit bowie \
+  --tags cu_live_rollback
+```
+
+Never run CU write playbooks against both boards simultaneously. The normal
+`site.yml` run does not rewrite live CU dispatch, but it preserves the enabled
+persistence service and its per-host validated table. The validation role reads
+the live topology and fails if it differs from that table.
+
+The public repository defaults to the sanitized example inventory. Commands
+against this private deployment require the ignored local production inventory
+to be selected explicitly with `-i inventories/production/hosts.yml`.

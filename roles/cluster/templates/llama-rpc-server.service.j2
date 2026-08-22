@@ -1,0 +1,27 @@
+[Unit]
+Description=llama.cpp Vulkan RPC worker
+Documentation=https://github.com/ggml-org/llama.cpp/tree/master/tools/rpc
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User={{ llama_system_user }}
+Group={{ llama_system_group }}
+SupplementaryGroups=render video
+EnvironmentFile={{ cluster_llama_environment_dir }}/rpc.env
+ExecStart={{ llama_cpp_current_path }}/bin/ggml-rpc-server --host {{ backend_ip }} --port {{ llama_rpc_port }} --device {{ vulkan_device }}{{ ' --cache' if llama_rpc_cache_enabled else '' }}
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths={{ llama_rpc_cache_dir }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,240 @@
+---
+- name: Verify BC250 PCI driver
+  ansible.builtin.command:
+    argv: [lspci, -Dnnkd, "1002:13fe"]
+  register: validation_pci
+  changed_when: false
+  failed_when: "validation_pci.stdout is not search('Kernel driver in use: amdgpu')"
+
+- name: Validate persisted CU routing metadata
+  ansible.builtin.assert:
+    that:
+      - bc250_cu_live_configuration_validated | bool
+      - bc250_cu_live_validated_wgps | length > 0
+      - bc250_cu_live_validation_record | trim | length > 0
+      - >-
+        bc250_cu_live_validated_wgps | unique | length
+        == bc250_cu_live_validated_wgps | length
+    fail_msg: >-
+      Enabled CU persistence requires a non-empty, uniquely validated per-host
+      WGP table and validation record.
+  when: bc250_cu_live_persistence_enabled | bool
+
+- name: Read live CU routing without register writes
+  ansible.builtin.include_role:
+    name: bc250_hardware
+    tasks_from: cu_live_status.yml
+  when: bc250_cu_live_persistence_enabled | bool
+
+- name: Compare live CU rows with the validated per-host table
+  vars:
+    validation_cu_row_line: >-
+      {{ bc250_hardware_cu_live_status.stdout_lines
+         | select('search', '[|][ ]*' ~ item.label ~ '[ ]*[|]')
+         | list | first | default('') }}
+    validation_cu_row_cells: >-
+      {{ validation_cu_row_line.split('|')[2:7] | map('trim') | list }}
+    validation_cu_routed_markers: [D+, S+]
+  ansible.builtin.assert:
+    that:
+      - validation_cu_row_cells | length == 5
+      - >-
+        (validation_cu_row_cells[0] in validation_cu_routed_markers)
+        == ((item.prefix ~ '.0') in bc250_cu_live_validated_wgps)
+      - >-
+        (validation_cu_row_cells[1] in validation_cu_routed_markers)
+        == ((item.prefix ~ '.1') in bc250_cu_live_validated_wgps)
+      - >-
+        (validation_cu_row_cells[2] in validation_cu_routed_markers)
+        == ((item.prefix ~ '.2') in bc250_cu_live_validated_wgps)
+      - >-
+        (validation_cu_row_cells[3] in validation_cu_routed_markers)
+        == ((item.prefix ~ '.3') in bc250_cu_live_validated_wgps)
+      - >-
+        (validation_cu_row_cells[4] in validation_cu_routed_markers)
+        == ((item.prefix ~ '.4') in bc250_cu_live_validated_wgps)
+    fail_msg: >-
+      Live routing for {{ item.label }} differs from the validated per-host WGP
+      table. No register changes were attempted.
+  loop:
+    - {label: SE0.SH0, prefix: "0.0"}
+    - {label: SE0.SH1, prefix: "0.1"}
+    - {label: SE1.SH0, prefix: "1.0"}
+    - {label: SE1.SH1, prefix: "1.1"}
+  when: bc250_cu_live_persistence_enabled | bool
+
+- name: Verify live active CU count matches the validated table
+  ansible.builtin.assert:
+    that:
+      - >-
+        bc250_hardware_cu_live_status.stdout is search(
+          'CUs active & routed[ ]*:[ ]*'
+          ~ (((bc250_cu_live_validated_wgps | length) * 2) | string)
+          ~ '/40'
+        )
+    fail_msg: >-
+      Live active CU count differs from the validated per-host WGP table. No
+      register changes were attempted.
+  when: bc250_cu_live_persistence_enabled | bool
+
+- name: Verify Vulkan summary
+  ansible.builtin.command:
+    argv: [vulkaninfo, --summary]
+  environment:
+    DISPLAY: ""
+  register: validation_vulkan
+  changed_when: false
+  failed_when: >-
+    validation_vulkan.stdout is not search('RADV', ignorecase=true) or
+    validation_vulkan.stdout is not search(vulkan_expected_device_pattern, ignorecase=true) or
+    validation_vulkan.stdout is not search(vulkan_expected_vendor_id, ignorecase=true) or
+    validation_vulkan.stdout is not search(vulkan_expected_device_id, ignorecase=true)
+
+- name: Verify llama.cpp Vulkan device
+  ansible.builtin.command:
+    argv: ["{{ llama_cpp_install_root }}/current/bin/llama-cli", --list-devices]
+  register: validation_llama_devices
+  changed_when: false
+  failed_when: >-
+    validation_llama_devices.stdout is not search(vulkan_device) or
+    (bc250_ttm_enabled | bool and
+     validation_llama_devices.stdout is not search('12288 MiB'))
+
+- name: Read live BC250 TTM and DRM memory state
+  ansible.builtin.command:
+    argv: [cat, "{{ item }}"]
+  loop:
+    - /proc/cmdline
+    - /sys/module/ttm/parameters/pages_limit
+    - /sys/module/ttm/parameters/page_pool_size
+    - /sys/class/drm/card0/device/mem_info_gtt_total
+    - /sys/class/drm/card0/device/mem_info_vram_total
+  register: validation_ttm_memory
+  changed_when: false
+  when: bc250_ttm_enabled | bool
+
+- name: Verify live BC250 TTM and DRM memory state
+  ansible.builtin.assert:
+    that:
+      - >-
+        (validation_ttm_memory.results[0].stdout
+         | regex_findall('ttm[.]pages_limit=')) | length == 1
+      - >-
+        validation_ttm_memory.results[0].stdout is
+        search('(?:^| )ttm[.]pages_limit=' ~ (bc250_ttm_pages_limit | string) ~ '(?: |$)')
+      - >-
+        (validation_ttm_memory.results[0].stdout
+         | regex_findall('ttm[.]page_pool_size=')) | length == 1
+      - >-
+        validation_ttm_memory.results[0].stdout is
+        search('(?:^| )ttm[.]page_pool_size=' ~ (bc250_ttm_page_pool_size | string) ~ '(?: |$)')
+      - validation_ttm_memory.results[1].stdout | int == bc250_ttm_pages_limit | int
+      - validation_ttm_memory.results[2].stdout | int == bc250_ttm_page_pool_size | int
+      - validation_ttm_memory.results[3].stdout | int == bc250_ttm_pages_limit | int * 4096
+      - validation_ttm_memory.results[4].stdout | int == 536870912
+    fail_msg: Live BC250 TTM or DRM memory does not match the approved 12 GiB inference baseline.
+  when: bc250_ttm_enabled | bool
+
+- name: Verify BC250 performance services are enabled
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ item }}"]
+  loop: >-
+    {{ (['bc250-smu-oc.service'] if bc250_cpu_governor_enabled | bool else [])
+       + (['cyan-skillfish-governor-smu.service'] if bc250_gpu_governor_enabled | bool else []) }}
+  changed_when: false
+
+- name: Verify BC250 performance services are active
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ item }}"]
+  loop: >-
+    {{ (['bc250-smu-oc.service'] if bc250_cpu_governor_enabled | bool else [])
+       + (['cyan-skillfish-governor-smu.service'] if bc250_gpu_governor_enabled | bool else []) }}
+  changed_when: false
+
+- name: Verify BC250 GPU inference performance mode
+  ansible.builtin.command:
+    argv:
+      - busctl
+      - --system
+      - get-property
+      - com.cyanskillfish.Governor
+      - /com/cyanskillfish/Governor
+      - com.cyanskillfish.Governor.PerformanceMode
+      - Enabled
+  register: validation_gpu_performance_mode
+  changed_when: false
+  failed_when: validation_gpu_performance_mode.stdout != 'b true'
+  when:
+    - bc250_gpu_governor_enabled | bool
+    - bc250_gpu_governor_performance_mode_enabled | bool
+
+- name: Read backend interface from NetworkManager
+  ansible.builtin.command:
+    argv: [nmcli, -g, GENERAL.DEVICES, connection, show, "{{ backend_connection_name }}"]
+  register: validation_backend_interface
+  changed_when: false
+
+- name: Verify backend link speed
+  ansible.builtin.command:
+    argv: [cat, "/sys/class/net/{{ validation_backend_interface.stdout }}/speed"]
+  register: validation_backend_speed
+  changed_when: false
+  failed_when: validation_backend_speed.stdout | int < backend_minimum_link_mbps | int
+
+- name: Ping backend peer from backend source
+  ansible.builtin.command:
+    argv: [ping, -I, "{{ backend_ip }}", -c, "3", -W, "2", "{{ hostvars[item].backend_ip }}"]
+  loop: "{{ groups.bc250_cluster | reject('equalto', inventory_hostname) | list }}"
+  changed_when: false
+
+- name: Ensure backend is not a default route
+  ansible.builtin.command:
+    argv: [ip, -4, route, show, default]
+  register: validation_default_route
+  changed_when: false
+  failed_when: validation_backend_interface.stdout in validation_default_route.stdout
+
+- name: Verify RPC worker service
+  ansible.builtin.systemd_service:
+    name: llama-rpc-server.service
+    state: started
+  when: inventory_hostname in groups.llama_rpc_workers
+
+- name: Verify RPC listener is backend-only
+  ansible.builtin.command:
+    argv: [ss, -H, -lnt, "sport = :{{ llama_rpc_port }}"]
+  register: validation_rpc_socket
+  changed_when: false
+  failed_when: >-
+    backend_ip not in validation_rpc_socket.stdout or
+    management_ip in validation_rpc_socket.stdout
+  when: inventory_hostname in groups.llama_rpc_workers
+
+- name: Verify coordinator service
+  ansible.builtin.systemd_service:
+    name: llama-server.service
+    state: started
+  when: inventory_hostname in groups.llama_coordinator
+
+- name: Query coordinator health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ management_ip }}:{{ llama_api_port }}/health"
+    status_code: 200
+  when: inventory_hostname in groups.llama_coordinator
+
+- name: Verify coordinator can reach RPC workers
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[item].backend_ip }}"
+    port: "{{ llama_rpc_port }}"
+    state: started
+    timeout: 5
+  loop: "{{ groups.llama_rpc_workers }}"
+  when: inventory_hostname in groups.llama_coordinator
+
+- name: Scan current boot for critical GPU faults
+  ansible.builtin.command:
+    argv: [journalctl, -k, -b, --no-pager]
+  register: validation_kernel_log
+  changed_when: false
+  failed_when: >-
+    validation_kernel_log.stdout is search('GPU reset|ring .* timeout|amdgpu.*page fault', ignorecase=true)

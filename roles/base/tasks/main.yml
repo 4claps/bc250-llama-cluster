@@ -1,0 +1,109 @@
+---
+- name: Require Fedora targets
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Fedora'
+      - ansible_facts.distribution_major_version == '44'
+    fail_msg: "This project currently supports Fedora targets only."
+
+- name: Check Ansible DNF5 Python bindings
+  ansible.builtin.raw: rpm -q python3-libdnf5
+  register: base_libdnf5
+  changed_when: false
+  failed_when: base_libdnf5.rc not in [0, 1]
+  check_mode: false
+
+- name: Bootstrap Ansible DNF5 Python bindings
+  ansible.builtin.raw: dnf install -y python3-libdnf5
+  when: base_libdnf5.rc == 1
+  changed_when: true
+  check_mode: false
+
+- name: Install Fedora base packages
+  ansible.builtin.dnf:
+    name:
+      - curl
+      - ethtool
+      - firewalld
+      - git-core
+      - iperf3
+      - iproute
+      - lvm2
+      - NetworkManager
+      - pciutils
+      - python3
+      - python3-libdnf5
+      - python3-libselinux
+      - rsync
+      - stress-ng
+      - tar
+      - xfsprogs
+      - zstd
+    state: present
+
+- name: Read free bytes in root volume group
+  ansible.builtin.command:
+    argv:
+      - vgs
+      - --noheadings
+      - --units
+      - b
+      - --nosuffix
+      - -o
+      - vg_free
+      - "{{ base_root_lvm_vg }}"
+  register: base_root_vg_free
+  changed_when: false
+  check_mode: false
+  when: base_expand_root_lvm_enabled | bool
+
+- name: Extend root logical volume and filesystem to all free extents
+  ansible.builtin.command:
+    argv:
+      - lvextend
+      - --resizefs
+      - --extents
+      - +100%FREE
+      - "/dev/{{ base_root_lvm_vg }}/{{ base_root_lvm_lv }}"
+  when:
+    - base_expand_root_lvm_enabled | bool
+    - base_root_vg_free.stdout | trim | float > 0
+    - not ansible_check_mode
+  changed_when: true
+
+- name: Apply Fedora package updates
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_only: true
+  register: base_updates
+  when: base_apply_updates | bool
+
+- name: Report reboot review after updates
+  ansible.builtin.debug:
+    msg: >-
+      Packages changed on {{ inventory_hostname }}. Review the kernel and reboot
+      serially before Vulkan validation if a kernel, Mesa, or firmware package changed.
+  when:
+    - base_updates is changed
+    - not base_reboot_automatically | bool
+
+- name: Reboot updated host only when explicitly enabled
+  ansible.builtin.reboot:
+    reboot_timeout: 900
+  when:
+    - base_updates is changed
+    - base_reboot_automatically | bool
+
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ cluster_timezone }}"
+
+- name: Ensure NetworkManager and firewalld are active
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - NetworkManager.service
+    - firewalld.service

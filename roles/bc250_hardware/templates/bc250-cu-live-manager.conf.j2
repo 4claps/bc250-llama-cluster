@@ -1,0 +1,15 @@
+# Validated on {{ inventory_hostname }}: {{ bc250_cu_live_validation_record }}
+# Format: SE0.SH0,SE0.SH1,SE1.SH0,SE1.SH1 SPI WGP masks.
+{% set bits = {'0': 1, '1': 2, '2': 4, '3': 8, '4': 16} %}
+{% set masks = namespace(values=[]) %}
+{% for row in ['0.0', '0.1', '1.0', '1.1'] %}
+{% set value = namespace(n=0) %}
+{% for entry in bc250_cu_live_validated_wgps %}
+{% if entry.startswith(row ~ '.') %}{% set value.n = value.n + bits[entry.split('.')[2]] %}{% endif %}
+{% endfor %}
+{% set masks.values = masks.values + ['0x%02x' | format(value.n)] %}
+{% endfor %}
+BC250_WGP_MASKS={{ masks.values | join(',') }}
+UMR_ASIC={{ bc250_cu_live_umr_asic }}
+UMR_INSTANCE={{ bc250_cu_live_umr_instance | default('', true) }}
+UMR=/usr/bin/umr

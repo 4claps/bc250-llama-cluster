@@ -1,0 +1,43 @@
+[dbus]
+enabled = true
+
+[timing.intervals]
+sample = 250
+adjust = 100_000
+
+[gpu-usage]
+fix-metrics = true
+method = "busy-flag"
+flush-every = 10
+
+[gpu]
+set-method = "smu"
+
+[frequency-range]
+min = 500
+max = {{ bc250_hardware_performance_profile.gpu.max_frequency }}
+
+[timing.ramp-rates]
+normal = 1
+burst = 50
+
+[timing]
+burst-samples = 60
+down-events = 5
+
+[frequency-thresholds]
+adjust = 10
+
+[load-target]
+upper = 0.65
+lower = 0.50
+
+[temperature]
+throttling = 80
+throttling_recovery = 75
+{% for point in bc250_hardware_performance_profile.gpu.safe_points %}
+
+[[safe-points]]
+frequency = {{ point.frequency }}
+voltage = {{ point.voltage }}
+{% endfor %}

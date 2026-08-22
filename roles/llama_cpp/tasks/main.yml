@@ -1,0 +1,173 @@
+---
+- name: Validate pinned llama.cpp source
+  ansible.builtin.assert:
+    that:
+      - llama_cpp_version is not search('CHANGE_ME')
+      - llama_cpp_cmake_options.GGML_VULKAN == 'ON'
+      - llama_cpp_cmake_options.GGML_RPC == 'ON'
+    fail_msg: Pin llama.cpp and keep both Vulkan and RPC enabled.
+
+- name: Install llama.cpp build dependencies
+  ansible.builtin.dnf:
+    name:
+      - cmake
+      - gcc-c++
+      - git-core
+      - glslc
+      - libcurl-devel
+      - make
+      - ninja-build
+      - spirv-headers-devel
+      - vulkan-headers
+      - vulkan-loader-devel
+    state: present
+
+- name: Create source and release directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ llama_cpp_source_dir | dirname }}"
+    - "{{ llama_cpp_build_dir }}"
+    - "{{ llama_cpp_install_root }}/releases"
+
+- name: Check out pinned upstream llama.cpp
+  ansible.builtin.git:
+    repo: "{{ llama_cpp_repo }}"
+    dest: "{{ llama_cpp_source_dir }}"
+    version: "{{ llama_cpp_version }}"
+    update: true
+    force: false
+  register: llama_cpp_source
+
+- name: Compose effective CMake options
+  ansible.builtin.set_fact:
+    llama_cpp_effective_cmake_options: >-
+      {{ llama_cpp_cmake_options
+         | combine({} if llama_cpp_ggml_native is none
+           else {'GGML_NATIVE': ('ON' if llama_cpp_ggml_native | bool else 'OFF')}) }}
+
+- name: Initialize CMake argument list
+  ansible.builtin.set_fact:
+    llama_cpp_cmake_argv:
+      - cmake
+      - -S
+      - "{{ llama_cpp_source_dir }}"
+      - -B
+      - "{{ llama_cpp_build_dir }}"
+      - -G
+      - Ninja
+      - "-DCMAKE_BUILD_TYPE={{ llama_cpp_build_type }}"
+
+- name: Add configured CMake options
+  ansible.builtin.set_fact:
+    llama_cpp_cmake_argv: >-
+      {{ llama_cpp_cmake_argv + ['-D' ~ item.key ~ '=' ~ item.value] }}
+  loop: "{{ llama_cpp_effective_cmake_options | dict2items }}"
+
+- name: Record build configuration
+  ansible.builtin.copy:
+    content: >-
+      {{ {'version': llama_cpp_version,
+          'build_type': llama_cpp_build_type,
+          'options': llama_cpp_effective_cmake_options} | to_nice_json }}
+    dest: "{{ llama_cpp_build_dir }}/.ansible-build-config.json"
+    owner: root
+    group: root
+    mode: "0644"
+  register: llama_cpp_build_config
+
+- name: Check installed llama.cpp server
+  ansible.builtin.stat:
+    path: "{{ llama_cpp_release_path }}/bin/llama-server"
+  register: llama_cpp_installed_server
+
+- name: Configure llama.cpp build
+  ansible.builtin.command:
+    argv: "{{ llama_cpp_cmake_argv }}"
+  when: >-
+    llama_cpp_source.changed or llama_cpp_build_config.changed or
+    not llama_cpp_installed_server.stat.exists
+  changed_when: true
+
+- name: Build llama.cpp
+  ansible.builtin.command:
+    argv:
+      - cmake
+      - --build
+      - "{{ llama_cpp_build_dir }}"
+      - --parallel
+      - "{{ ansible_facts.processor_vcpus | default(4) | string }}"
+  when: >-
+    llama_cpp_source.changed or llama_cpp_build_config.changed or
+    not llama_cpp_installed_server.stat.exists
+  changed_when: true
+
+- name: Install versioned llama.cpp release
+  ansible.builtin.command:
+    argv:
+      - cmake
+      - --install
+      - "{{ llama_cpp_build_dir }}"
+      - --prefix
+      - "{{ llama_cpp_release_path }}"
+  when: >-
+    llama_cpp_source.changed or llama_cpp_build_config.changed or
+    not llama_cpp_installed_server.stat.exists
+  changed_when: true
+
+- name: Link active llama.cpp release
+  ansible.builtin.file:
+    src: "{{ llama_cpp_release_path }}"
+    dest: "{{ llama_cpp_current_path }}"
+    state: link
+    force: true
+  register: llama_cpp_active_release
+  when: not ansible_check_mode or llama_cpp_installed_server.stat.exists
+
+- name: Register active llama.cpp libraries with dynamic linker
+  ansible.builtin.copy:
+    content: "{{ llama_cpp_current_path }}/lib64\n"
+    dest: /etc/ld.so.conf.d/llama-cpp.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: llama_cpp_ld_config
+
+- name: Refresh dynamic linker cache
+  ansible.builtin.command:
+    argv: [ldconfig]
+  when:
+    - not ansible_check_mode
+    - llama_cpp_active_release is changed or llama_cpp_ld_config is changed
+  changed_when: true
+
+- name: Check required llama.cpp binaries
+  ansible.builtin.stat:
+    path: "{{ llama_cpp_current_path }}/bin/{{ item }}"
+  loop: "{{ llama_cpp_required_binaries }}"
+  register: llama_cpp_binaries
+  when: not ansible_check_mode
+
+- name: Require all expected binaries
+  ansible.builtin.assert:
+    that:
+      - llama_cpp_binaries.results | rejectattr('stat.exists') | list | length == 0
+  when: not ansible_check_mode
+
+- name: Verify Vulkan device is visible to llama.cpp
+  ansible.builtin.command:
+    argv: ["{{ llama_cpp_current_path }}/bin/llama-cli", --list-devices]
+  register: llama_cpp_devices
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require BC250 Vulkan device in llama.cpp
+  ansible.builtin.assert:
+    that:
+      - llama_cpp_devices.stdout is search(vulkan_device)
+      - llama_cpp_devices.stdout is search('Vulkan|BC-250|GFX1013', ignorecase=true)
+  when: not ansible_check_mode

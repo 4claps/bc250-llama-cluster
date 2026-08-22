@@ -1,0 +1,42 @@
+---
+- name: Validate persistence safety gates
+  ansible.builtin.assert:
+    that:
+      - ansible_play_hosts_all | length == 1
+      - bc250_cu_live_persistence_enabled | bool
+      - bc250_cu_live_configuration_validated | bool
+      - bc250_cu_live_validation_record | trim | length > 0
+      - bc250_cu_live_validated_wgps | length > 0
+      - bc250_cu_live_validated_wgps | unique | length == bc250_cu_live_validated_wgps | length
+      - bc250_cu_live_validated_wgps | difference(bc250_hardware_cu_live_all_wgps) | length == 0
+      - bc250_cu_live_validated_wgps | sort == bc250_cu_live_target_wgps | sort
+    fail_msg: >-
+      Persistence requires one --limit host and an independently validated
+      per-board table matching the requested target.
+
+- name: Install validated boot table
+  ansible.builtin.template:
+    src: bc250-cu-live-manager.conf.j2
+    dest: "{{ bc250_hardware_cu_live_service_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart BC250 CU restore
+
+- name: Install CU boot restore unit
+  ansible.builtin.template:
+    src: bc250-cu-live-manager.service.j2
+    dest: /etc/systemd/system/bc250-cu-live-manager.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd for BC250 CU restore
+    - Restart BC250 CU restore
+
+- name: Enable validated CU boot restore
+  ansible.builtin.systemd_service:
+    name: "{{ bc250_hardware_cu_live_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true

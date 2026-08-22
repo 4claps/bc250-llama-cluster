@@ -1,0 +1,14 @@
+[Unit]
+Description=BC-250 validated CU/WGP dispatch restore
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ bc250_hardware_cu_live_service_config }}
+ExecStartPre=/usr/bin/bash -c 'for i in {1..30}; do compgen -G "/dev/dri/renderD*" >/dev/null && exit 0; sleep 1; done; exit 1'
+ExecStart={{ bc250_hardware_cu_live_manager_path }} --yes apply-service
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

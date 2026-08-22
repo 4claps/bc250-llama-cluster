@@ -1,0 +1,11 @@
+---
+- name: Persist a separately validated per-board WGP table
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: false
+  tags: [never, cu_live_persist]
+  tasks:
+    - name: Apply guarded CU persistence
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: cu_live_persist.yml

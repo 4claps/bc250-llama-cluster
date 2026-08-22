@@ -1,0 +1,7 @@
+---
+- name: Build and install pinned llama.cpp
+  hosts: bc250_cluster
+  gather_facts: true
+  tags: [llama_cpp]
+  roles:
+    - role: llama_cpp

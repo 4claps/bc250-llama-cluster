@@ -1,0 +1,29 @@
+---
+- name: Validate pinned CU live-manager artifact
+  ansible.builtin.assert:
+    that:
+      - bc250_cu_live_manager_url is not search('CHANGE_ME')
+      - bc250_cu_live_manager_sha256 is match('^[a-fA-F0-9]{64}$')
+    fail_msg: Pin and checksum bc250-cu-live-manager before installation.
+
+- name: Install Fedora UMR package
+  ansible.builtin.dnf:
+    name: umr
+    state: present
+
+- name: Install checksum-verified CU live manager
+  ansible.builtin.get_url:
+    url: "{{ bc250_cu_live_manager_url }}"
+    dest: "{{ bc250_hardware_cu_live_manager_path }}"
+    checksum: "sha256:{{ bc250_cu_live_manager_sha256 }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Ensure boot persistence remains disabled by default
+  ansible.builtin.systemd_service:
+    name: "{{ bc250_hardware_cu_live_service_name }}"
+    enabled: false
+    state: stopped
+  failed_when: false
+  when: not bc250_cu_live_persistence_enabled | bool

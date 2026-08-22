@@ -1,0 +1,154 @@
+---
+- name: Create llama.cpp service group
+  ansible.builtin.group:
+    name: "{{ llama_system_group }}"
+    system: true
+
+- name: Create llama.cpp service account
+  ansible.builtin.user:
+    name: "{{ llama_system_user }}"
+    group: "{{ llama_system_group }}"
+    groups: render,video
+    append: true
+    system: true
+    create_home: false
+    home: "{{ llama_state_dir }}"
+    shell: /usr/sbin/nologin
+
+- name: Create llama.cpp runtime directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ cluster_llama_environment_dir }}", owner: root, group: "{{ llama_system_group }}", mode: "0750"}
+    - {path: "{{ llama_state_dir }}", owner: "{{ llama_system_user }}", group: "{{ llama_system_group }}", mode: "0750"}
+    - {path: "{{ llama_model_dir }}", owner: "{{ llama_system_user }}", group: "{{ llama_system_group }}", mode: "0750"}
+    - {path: "{{ llama_rpc_cache_dir }}", owner: "{{ llama_system_user }}", group: "{{ llama_system_group }}", mode: "0750"}
+
+- name: Download checksum-verified coordinator model
+  ansible.builtin.get_url:
+    url: "{{ llama_model_url }}"
+    dest: "{{ cluster_llama_model_path }}"
+    checksum: "sha256:{{ llama_model_sha256 }}"
+    owner: "{{ llama_system_user }}"
+    group: "{{ llama_system_group }}"
+    mode: "0640"
+  when:
+    - inventory_hostname in groups.llama_coordinator
+    - llama_manage_model_download | bool
+
+- name: Check coordinator model
+  ansible.builtin.stat:
+    path: "{{ cluster_llama_model_path }}"
+  register: cluster_model
+  when:
+    - inventory_hostname in groups.llama_coordinator
+    - llama_model_filename | length > 0
+
+- name: Require coordinator model before service activation
+  ansible.builtin.assert:
+    that: cluster_model.stat.exists
+    fail_msg: >-
+      Place the declared GGUF on Bowie or enable checksum-verified model download.
+  when:
+    - inventory_hostname in groups.llama_coordinator
+    - llama_model_filename | length > 0
+    - not ansible_check_mode
+
+- name: Install RPC worker environment
+  ansible.builtin.template:
+    src: rpc.env.j2
+    dest: "{{ cluster_llama_environment_dir }}/rpc.env"
+    owner: root
+    group: "{{ llama_system_group }}"
+    mode: "0640"
+  when: inventory_hostname in groups.llama_rpc_workers
+  notify: Restart llama.cpp RPC server
+
+- name: Install RPC worker service
+  ansible.builtin.template:
+    src: llama-rpc-server.service.j2
+    dest: /etc/systemd/system/llama-rpc-server.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: inventory_hostname in groups.llama_rpc_workers
+  notify:
+    - Reload llama.cpp systemd units
+    - Restart llama.cpp RPC server
+
+- name: Permit RPC only from Bowie backend address
+  ansible.posix.firewalld:
+    zone: "{{ backend_firewall_zone }}"
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ hostvars[groups.llama_coordinator[0]].backend_ip }}/32"
+      port port="{{ llama_rpc_port }}" protocol="tcp" accept
+    permanent: true
+    immediate: true
+    state: enabled
+  when: inventory_hostname in groups.llama_rpc_workers
+
+- name: Enable RPC worker service
+  ansible.builtin.systemd_service:
+    name: llama-rpc-server.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  when:
+    - inventory_hostname in groups.llama_rpc_workers
+    - not ansible_check_mode
+
+- name: Discover management firewall zone
+  ansible.builtin.command:
+    argv: [firewall-cmd, --get-zone-of-interface, "{{ ansible_facts.default_ipv4.interface }}"]
+  register: cluster_management_zone
+  changed_when: false
+  check_mode: false
+  when: inventory_hostname in groups.llama_coordinator
+
+- name: Require expected management firewall zone
+  ansible.builtin.assert:
+    that:
+      - cluster_management_zone.stdout == management_firewall_zone
+    fail_msg: >-
+      The management interface is not in the reviewed firewalld zone. Update
+      management_firewall_zone instead of guessing.
+  when: inventory_hostname in groups.llama_coordinator
+
+- name: Permit coordinator API from trusted management CIDRs
+  ansible.posix.firewalld:
+    zone: "{{ management_firewall_zone }}"
+    rich_rule: >-
+      rule family="ipv4" source address="{{ item }}"
+      port port="{{ llama_api_port }}" protocol="tcp" accept
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ llama_api_allowed_cidrs }}"
+  when: inventory_hostname in groups.llama_coordinator
+
+- name: Install coordinator service
+  ansible.builtin.template:
+    src: llama-server.service.j2
+    dest: /etc/systemd/system/llama-server.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: inventory_hostname in groups.llama_coordinator
+  notify:
+    - Reload llama.cpp systemd units
+    - Restart llama.cpp coordinator
+
+- name: Enable coordinator service
+  ansible.builtin.systemd_service:
+    name: llama-server.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  when:
+    - inventory_hostname in groups.llama_coordinator
+    - not ansible_check_mode

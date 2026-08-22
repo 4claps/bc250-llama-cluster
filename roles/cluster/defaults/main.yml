@@ -1,0 +1,3 @@
+---
+cluster_llama_environment_dir: /etc/llama.cpp
+cluster_llama_model_path: "{{ llama_model_dir }}/{{ llama_model_filename }}"

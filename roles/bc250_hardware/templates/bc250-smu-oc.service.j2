@@ -1,0 +1,12 @@
+[Unit]
+Description=AMD BC-250 CPU SMU performance profile ({{ bc250_performance_profile }})
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart={{ bc250_hardware_cpu_governor_venv }}/bin/bc250-apply --apply {{ bc250_hardware_cpu_governor_config }}
+RemainAfterExit=yes
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+---
+- name: Apply a temporary per-board WGP table
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: false
+  tags: [never, cu_live_test]
+  tasks:
+    - name: Apply guarded CU live test
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: cu_live_test.yml

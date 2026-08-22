@@ -1,0 +1,64 @@
+---
+- name: Install BC250 CPU governor dependencies
+  ansible.builtin.dnf:
+    name:
+      - git-core
+      - python3
+      - python3-pip
+      - stress
+    state: present
+
+- name: Check out pinned BC250 CPU governor source
+  ansible.builtin.git:
+    repo: "{{ bc250_hardware_cpu_governor_repo }}"
+    dest: "{{ bc250_hardware_cpu_governor_source_dir }}"
+    version: "{{ bc250_hardware_cpu_governor_version }}"
+    update: true
+    force: false
+  register: bc250_hardware_cpu_governor_source
+
+- name: Check BC250 CPU governor virtual environment
+  ansible.builtin.stat:
+    path: "{{ bc250_hardware_cpu_governor_venv }}/bin/bc250-apply"
+  register: bc250_hardware_cpu_governor_binary
+
+- name: Install pinned BC250 CPU governor virtual environment
+  ansible.builtin.pip:
+    name: "{{ bc250_hardware_cpu_governor_source_dir }}"
+    virtualenv: "{{ bc250_hardware_cpu_governor_venv }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+    state: forcereinstall
+  when:
+    - not ansible_check_mode
+    - >-
+      bc250_hardware_cpu_governor_source is changed or
+      not bc250_hardware_cpu_governor_binary.stat.exists
+  notify: Restart BC250 CPU governor
+
+- name: Install BC250 CPU profile
+  ansible.builtin.template:
+    src: bc250-smu-oc.conf.j2
+    dest: "{{ bc250_hardware_cpu_governor_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart BC250 CPU governor
+
+- name: Install BC250 CPU governor service
+  ansible.builtin.template:
+    src: bc250-smu-oc.service.j2
+    dest: /etc/systemd/system/bc250-smu-oc.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd for BC250 performance services
+    - Restart BC250 CPU governor
+
+- name: Enable and start BC250 CPU governor
+  ansible.builtin.systemd_service:
+    name: "{{ bc250_hardware_cpu_governor_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
