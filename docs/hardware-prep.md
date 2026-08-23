@@ -69,12 +69,14 @@ Before enabling performance tuning or unattended workloads:
 - Verify that power connectors and wiring are not overheating.
 - Qualify each board individually before enabling persistent 40-CU routing.
 
-During the recorded sustained 64K Qwen3-Coder test, Crockett reached
-approximately 90°C and throttled while Bowie remained substantially cooler.
-The physical setup listed above includes the cooling remediation made for the
-next qualification run, but the same sustained benchmark has not yet been
-rerun. The cluster therefore remains pending final sustained thermal
-qualification.
+During the original sustained 64K Qwen3-Coder test, Crockett reached
+approximately 90°C and throttled while Bowie peaked at 67°C. After the physical
+cooling remediation listed above, the equivalent 18,976-token prompt plus
+1,024-token generation qualification peaked at 66°C on Crockett and 61°C on
+Bowie. Crockett's late-prompt heat-soak temperature averaged 62.5°C, both GPUs
+held 1750 MHz, and neither node throttled or produced a GPU, kernel, RPC, or
+network error. The 24°C reduction qualifies this physical setup for the tested
+sustained Hermes workload.
 
 My hardware configuration is an example, not a universal BC250 cooling
 specification or proof that another board is safe under the same workload.

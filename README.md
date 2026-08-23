@@ -128,12 +128,14 @@ token context, automatic layer split, Bowie local Vulkan plus Crockett RPC, and
 For Hermes Agent, the current recommendation is
 `Qwen3-Coder-30B-A3B-Instruct-Q4_K_M` with a 65,536-token context, Q8_0 K/V
 cache, both GPUs, and automatic layer split. It loaded and completed the 64K
-tests, but sustained thermal qualification is still pending: Crockett reached
-approximately 90°C and throttled while Bowie remained substantially cooler.
-The physical cooling changes described in
-[Hardware preparation](docs/hardware-prep.md) have since been made, but the
-same test has not yet been rerun. Do not hide this cooling limitation by
-raising thermal limits or changing the validated software profile.
+tests. In the original sustained run, Crockett reached approximately 90°C and
+throttled while Bowie peaked at 67°C. After the physical cooling changes in
+[Hardware preparation](docs/hardware-prep.md), the equivalent 18,976-token
+prompt plus 1,024-token generation qualification peaked at 61°C on Bowie and
+66°C on Crockett. Both GPUs held 1750 MHz without thermal throttling, GPU
+errors, resets, or RPC failures. Crockett therefore passes sustained thermal
+qualification for this workload without a software-profile or thermal-limit
+change.
 
 See [the deployed-state record](docs/current-state.md) and the complete
 [Hermes model bake-off](docs/hermes-model-bakeoff.md).

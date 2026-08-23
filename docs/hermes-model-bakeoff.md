@@ -66,6 +66,47 @@ No GPU reset, VM/page fault, ring timeout, allocation failure, new MCE, or other
 AMDGPU/kernel hardware error was found. Both governor services and the
 coordinator/RPC services remained active.
 
+## Post-cooling thermal qualification
+
+The sustained Qwen3-Coder-30B automatic-split test was repeated on 2026-08-23
+after Crockett received the physical cooling changes described in
+[Hardware preparation](hardware-prep.md). The software baseline was unchanged:
+llama.cpp commit `d775b8967a46d8beb110d444aa3b8938179e0dd8`, the same verified
+Q4_K_M GGUF, 65,536 context, Q8_0 K/V, one slot, all layers offloaded, and no
+manual tensor split. Telemetry sampled both nodes once per second.
+
+The original private prompt artifact was not retained. The rerun therefore
+used a deterministic synthetic payload with the same 18,976-token prompt count,
+followed immediately by a separate 1,024-token generation request. This keeps
+the thermal load, allocation, context, and generation length comparable, but
+the prompt-throughput change is not a controlled model-quality comparison.
+
+| Metric | Original | Post-cooling | Change |
+| --- | ---: | ---: | ---: |
+| Bowie peak temperature | 67°C | 61°C | -6°C |
+| Crockett peak temperature | 90°C | **66°C** | **-24°C** |
+| Bowie peak PPT | 135.31 W | 137.02 W | +1.71 W |
+| Crockett peak PPT | 131.09 W | 128.74 W | -2.35 W |
+| Prompt processing | 377.96 tok/s | 420.25 tok/s | +11.2%[^prompt-comparison] |
+| Generation | 77.89 tok/s | 77.10 tok/s | -1.0% |
+| Stream first event | 3.34 s | 3.71 s | +0.37 s |
+| Vulkan allocation, Bowie / Crockett | 10.20 / 10.62 GiB | 10.23 / 10.62 GiB | Comparable |
+| Free Vulkan, Bowie / Crockett | 1,837 / 1,409 MiB | 1,808 / 1,412 MiB | Comparable |
+| Crockett thermal throttling | Yes | **No** | Eliminated |
+| GPU resets, faults, RPC errors | None | None | No change |
+
+[^prompt-comparison]: The post-cooling payload preserved the token count but
+    not the unavailable original prompt contents, so the apparent prompt-rate
+    improvement is not attributed to cooling. Generation remained within
+    normal run-to-run variance.
+
+Crockett averaged 62.5°C during the late prompt heat-soak window and remained
+at 1750 MHz in every one-second workload sample. Bowie averaged 58.9°C over the
+same window. No thermal event, severe clock drop, GPU reset, VM/page fault,
+ring timeout, RPC disconnect, or backend timeout occurred. The five-degree
+peak difference is sufficiently balanced for unattended Hermes Agent use under
+this qualified workload.
+
 ## Split experiment
 
 llama.cpp lists the RPC device before Bowie's local device for `--tensor-split`.
@@ -111,13 +152,12 @@ result would not establish suitability for the required 64K Hermes workload.
    important thermal and memory-pressure warnings above.
 
 Use **Qwen3-Coder-30B-A3B-Instruct Q4_K_M** as the default model selection, with
-65,536 context, Q8_0 K/V cache, and automatic split. However, neither true-64K
-candidate passed the long-prompt run without Crockett exceeding the 80°C target
-and throttling. Treat the selection as functionally correct but not yet
-thermally qualified for unattended sustained Hermes workloads. Thermal-interface
-replacement, a rear heatsink, and increased physical separation from Bowie are
-planned, followed by a repeat of the same benchmark. Do not raise clocks,
-voltage, power, or thermal limits to mask this pending cooling work.
+65,536 context, Q8_0 K/V cache, and automatic split. The original bake-off
+established the model recommendation but exposed Crockett's cooling failure.
+The post-cooling rerun eliminated that throttling without changing clocks,
+voltage, power, thermal limits, or the software profile, so this configuration
+is now sustained-thermally qualified for unattended Hermes workloads on the
+documented hardware.
 
 Hermes-4 Q6_K and Q8_0 are **NOT VIABLE FOR HERMES ON CURRENT HARDWARE AND
 REQUIRED CONTEXT** because the server caps them to 40,960 tokens. Qwen3-Coder-
