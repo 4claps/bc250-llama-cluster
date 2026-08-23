@@ -90,12 +90,16 @@ ran at 64K, but its tighter memory margin, slower generation, and aggressive
 quantization make it the fallback rather than the default. Hermes-4-14B is
 limited to 40,960 tokens and does not meet the intended Hermes requirement.
 
-The 64K Qwen3-Coder-30B run was functionally successful, but Crockett reached
-approximately 90°C and throttled while Bowie stayed substantially cooler.
-Thermal-interface replacement, a rear heatsink, and increased physical board
-separation are planned. Sustained thermal qualification remains pending a rerun
-after those physical cooling improvements; no software profile reduction or
-thermal-limit increase is being used to conceal the result.
+The original 64K Qwen3-Coder-30B run was functionally successful, but Crockett
+reached approximately 90°C and throttled while Bowie peaked at 67°C. After
+thermal-interface replacement, a rear heatsink, and increased physical board
+separation, the sustained qualification was repeated with the same model,
+llama.cpp revision, 65,536 context, Q8_0 K/V, one slot, and automatic split.
+Crockett peaked at 66°C, averaged 62.5°C during late-prompt heat soak, and held
+1750 MHz without throttling. Bowie peaked at 61°C. Generation remained within
+normal variance at 77.10 tokens/s, and no GPU reset, fault, RPC error, or
+backend timeout occurred. Crockett now passes sustained thermal qualification
+without a software-profile or thermal-limit change.
 
 Router mode discovers models at service startup. Restart
 `llama-server.service` after adding another GGUF to the model directory.
