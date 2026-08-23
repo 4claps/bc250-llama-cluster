@@ -1,5 +1,59 @@
 # BC250 distributed llama.cpp Vulkan cluster
 
+> [!CAUTION]
+> A BC250 board is not ready for sustained inference in stock form. Before
+> targeting hardware, read [Hardware preparation](docs/hardware-prep.md) and
+> the linked BC250 Community Documentation. Physical modifications and
+> low-level tuning can damage hardware and are undertaken at the operator's
+> own risk.
+
+## Why this project exists
+
+The AMD BC250 is an unusual compute board originally produced for
+cryptocurrency mining. It uses an AMD APU derived from PlayStation 5 hardware,
+combining Zen 2 CPU cores, an RDNA 2-based GPU, and 16 GB of high-bandwidth
+GDDR6 unified memory shared between the CPU and GPU. Community Linux support
+has turned these surplus boards into inexpensive and surprisingly capable
+compute platforms.
+
+I have always liked the idea of the BC250, so when I found a decent local deal
+on two of them, I picked them up. I initially built one into a complete system
+with its own case and installed Bazzite, but after the initial experimentation
+it mostly sat unused.
+
+When I started experimenting with local AI, I realized the BC250 could be a
+great candidate for inference. Its GPU, shared GDDR6 memory, Vulkan support,
+and low cost made it an interesting platform to experiment with.
+
+I first got a single BC250 working as a local AI system in my
+[bc250-hermes-local-agent](https://github.com/4claps/bc250-hermes-local-agent)
+project.
+
+Once the single-node system was working, I knew it was time to see what two of
+them could do together.
+
+That became this project.
+
+## Node naming
+
+I use names from Texas history for devices throughout my homelab. In my
+deployment, the two BC250 nodes are named **Bowie** and **Crockett**.
+
+These are simply hostnames for my specific systems:
+
+- **Bowie** = BC250 node 1 and the llama.cpp coordinator
+- **Crockett** = BC250 node 2 and the llama.cpp RPC worker
+
+These names are personal choices, not BC250 or llama.cpp terminology. The
+current inventory and preflight safety checks do, however, use `bowie` and
+`crockett` as the inventory host keys for this fixed two-node topology. To use
+different names, update the inventory keys, group membership checks, and
+related references consistently; changing only an operating-system hostname
+is not sufficient.
+
+Throughout the documentation, references to Bowie and Crockett mean my two
+BC250 nodes.
+
 ## What this is
 
 A reproducible Ansible deployment for a two-node AMD BC250 Fedora 44
@@ -11,8 +65,10 @@ isolated 2.5 Gb Ethernet link.
 
 - It is not an Ollama deployment.
 - It does not use Docker or Podman for inference.
-- It is not a generic multi-GPU or multi-host clustering framework.
-- Its hardware tuning is not guaranteed safe for every individual BC250.
+- It is not a generic GPU-clustering framework.
+- Its validated hardware tuning is not guaranteed safe on another BC250.
+
+## Networking
 
 ```text
 management LAN                        backend 10.250.0.0/30
@@ -74,9 +130,10 @@ For Hermes Agent, the current recommendation is
 cache, both GPUs, and automatic layer split. It loaded and completed the 64K
 tests, but sustained thermal qualification is still pending: Crockett reached
 approximately 90°C and throttled while Bowie remained substantially cooler.
-Thermal-interface replacement, a rear heatsink, and greater board separation
-are planned; the same test must be rerun afterward. Do not hide this cooling
-limitation by raising thermal limits or changing the validated software profile.
+The physical cooling changes described in
+[Hardware preparation](docs/hardware-prep.md) have since been made, but the
+same test has not yet been rerun. Do not hide this cooling limitation by
+raising thermal limits or changing the validated software profile.
 
 See [the deployed-state record](docs/current-state.md) and the complete
 [Hermes model bake-off](docs/hermes-model-bakeoff.md).
