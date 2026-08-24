@@ -2,6 +2,15 @@
 
 ## Inference path
 
+An existing external Hermes Agent machine is the API client; Hermes is not
+installed on either BC250. It talks only to Bowie's OpenAI-compatible HTTP
+endpoint:
+
+```text
+existing Hermes machine -> Bowie llama-server -> Bowie Vulkan
+                                           `-> Crockett RPC -> Crockett Vulkan
+```
+
 Bowie runs the sole `llama-server`, bound to management address
 `10.0.0.170:8080`. It loads the GGUF and uses its local `Vulkan0` device plus
 Crockett's remote Vulkan device at `10.250.0.2:50052`. The initial split mode is
@@ -14,6 +23,12 @@ server because its GPU is available directly to the coordinator.
 
 The RPC backend is experimental and unauthenticated. It is never bound to a
 management address or exposed beyond the dedicated link.
+
+The validated llama-server deployment also has no API-key authentication.
+Firewalld restricts TCP 8080 to explicitly configured trusted management
+CIDRs; it must not be exposed to the internet. Do not invent a client API key
+unless authentication is added deliberately at a reviewed reverse proxy or a
+future supported server boundary.
 
 ## Inventory boundary
 

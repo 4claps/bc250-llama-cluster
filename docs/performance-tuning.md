@@ -10,6 +10,14 @@ example inventory leaves both governors disabled and selects `stock`. Do not
 enable or promote a profile without a separate per-board stability and inference
 benchmark.
 
+The completed [Qwen3.6 profile characterization](qwen36-performance-profiles.md)
+qualified the upstream Moderate/1750, Strong/1850, and Aggressive/2000 curves
+on both deployment boards. Moderate remains the recommended unattended 24/7
+profile. Strong is an optional balanced-performance setting and Aggressive is
+an optional short-duration, prefill-heavy setting; neither is a production
+default. Do not interpolate frequencies or voltages between the published
+community profiles.
+
 ## TTM inference aperture
 
 The validated reproducible baseline enables `bc250_ttm_enabled` with
@@ -58,6 +66,8 @@ faults. Preserve raw private results under the gitignored `benchmarks/private/`.
 
 The [fit qualification plan](qwen3-coder-next-fit.md) records the analysis that
 preceded the completed bake-off. `Qwen3-Coder-Next-UD-IQ1_S` subsequently ran at
-65,536 tokens but was not preferred over Qwen3-Coder-30B Q4_K_M. GGUF size alone
-remains an invalid fit calculation on this integrated-GPU architecture because
-Vulkan and host processes contend for the same physical RAM.
+65,536 tokens but was not preferred. Qwen3.6-35B-A3B Q4_K_M is the final
+production recommendation; `gpt-oss-20b` MXFP4 is the fast/light alternative.
+GGUF size alone remains an invalid fit calculation on this integrated-GPU
+architecture because Vulkan and host processes contend for the same physical
+RAM.

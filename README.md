@@ -7,6 +7,8 @@
 > low-level tuning can damage hardware and are undertaken at the operator's
 > own risk.
 
+**[TL;DR: Hardware, deployment steps, and tested results](docs/TLDR.md)**
+
 ## Why this project exists
 
 The AMD BC250 is an unusual compute board originally produced for
@@ -135,6 +137,12 @@ throttling, GPU errors, resets, or RPC failures.
 
 See [the deployed-state record](docs/current-state.md) and the complete
 [Hermes model bake-off](docs/hermes-model-bakeoff.md).
+The [Qwen3.6 performance-profile characterization](docs/qwen36-performance-profiles.md)
+compares the upstream Moderate/1750, Strong/1850, and Aggressive/2000 profiles.
+Moderate remains the recommended 24/7 setting; Strong and Aggressive are
+characterized optional profiles, not production defaults. `gpt-oss-20b`
+MXFP4 remains the fast/light alternative when its lower practical tool-use
+reliability is acceptable.
 Fan installation, qualification, rollback, and telemetry are documented in
 [Fan control](docs/fan-control.md).
 

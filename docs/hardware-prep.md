@@ -78,5 +78,14 @@ held 1750 MHz, and neither node throttled or produced a GPU, kernel, RPC, or
 network error. The 24°C reduction qualifies this physical setup for the tested
 sustained Hermes workload.
 
+Cooling qualification now also includes the Ansible-managed NCT6686D fan
+controller, positive PWM/tachometer channel identification on each board, a
+fail-safe automatic curve, and continuous PWM/RPM telemetry. The later Qwen3.6
+profile characterization peaked at 64/66°C on Bowie/Crockett under the
+recommended Moderate/1750 profile. Strong/1850 and Aggressive/2000 were also
+stable, but remain optional characterized profiles rather than unattended
+defaults. See [Fan control](fan-control.md) and
+[Qwen3.6 performance profiles](qwen36-performance-profiles.md).
+
 My hardware configuration is an example, not a universal BC250 cooling
 specification or proof that another board is safe under the same workload.
