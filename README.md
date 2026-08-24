@@ -7,6 +7,8 @@
 > low-level tuning can damage hardware and are undertaken at the operator's
 > own risk.
 
+**[TL;DR: Hardware, deployment steps, and tested results](docs/TLDR.md)**
+
 ## Why this project exists
 
 The AMD BC250 is an unusual compute board originally produced for
