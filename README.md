@@ -143,6 +143,9 @@ Moderate remains the recommended 24/7 setting; Strong and Aggressive are
 characterized optional profiles, not production defaults. `gpt-oss-20b`
 MXFP4 remains the fast/light alternative when its lower practical tool-use
 reliability is acceptable.
+The larger Qwen3.6 UD-Q4_K_XL quant was also tested, but tighter Vulkan margins,
+slower generation, and excessive Hermes task latency ruled it out as a
+replacement for the production Q4_K_M model.
 Fan installation, qualification, rollback, and telemetry are documented in
 [Fan control](docs/fan-control.md).
 

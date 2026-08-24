@@ -173,7 +173,7 @@ cache used by the active request.
 
 ## Hermes-focused model bake-off
 
-All five candidates fit at 65,536 context with full GPU layer offload. The
+All six candidates fit at 65,536 context with full GPU layer offload. The
 losing models were rejected primarily for practical agent behavior or latency,
 not inability to fit.
 
@@ -182,12 +182,16 @@ not inability to fit.
 | 1 | Qwen3.6-35B-A3B Q4_K_M | 23/27 (85.2%) | 8/9 | 108.4 s | 2 | 51.72 tok/s | Best overall Hermes backend and quality |
 | 2 | gpt-oss-20b MXFP4 | 21/27 (77.8%) | 8/9 | 70.9 s | 21 | 66.30 tok/s | Best speed, efficiency, and memory headroom |
 | 3 | Qwen3-Coder-30B-A3B Q4_K_M | 19/27 (70.4%) | 9/9 | — | 25 | — | Capable control; weaker practical Hermes result |
-| 4 | Qwen3.8-27B Q4_K_M | 2/21 (9.5%) | — | Excessive | — | — | Not recommended |
-| 5 | GLM-4.7-Flash Q4_K | Opening two tasks timed out | — | — | — | — | Not recommended |
+| 4 | Qwen3.6-35B-A3B UD-Q4_K_XL | 5/9 (55.6%), early stop | Not reached | 143.6 s | 0 | 50.45 tok/s | Stable, but tight memory and excessive agent latency |
+| 5 | Qwen3.8-27B Q4_K_M | 2/21 (9.5%) | — | Excessive | — | — | Not recommended |
+| 6 | GLM-4.7-Flash Q4_K | Opening two tasks timed out | — | — | — | — | Not recommended |
 
 Qwen3.6 won on real tool use, reliability, latency, and completed agent tasks,
 not raw tokens per second alone. `gpt-oss-20b` remains the useful fast/light
 alternative.
+The larger UD-Q4_K_XL quant did not replace it: generation was 2.46% slower,
+minimum free Vulkan memory fell to about 1.1 GB per node, and two of its first
+nine Hermes tasks timed out.
 
 ## Performance-profile results
 
