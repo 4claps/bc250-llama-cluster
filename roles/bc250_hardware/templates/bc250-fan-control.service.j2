@@ -1,0 +1,16 @@
+[Unit]
+Description=BC250 fail-safe GPU fan curve
+After=systemd-modules-load.service
+Requires=systemd-modules-load.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/sbin/bc250-fan-control
+ExecStopPost=/bin/sh -c 'for d in /sys/class/hwmon/hwmon*; do [ "$(cat "$d/name" 2>/dev/null)" = nct6686 ] && echo 2 > "$d/pwm{{ bc250_fan_control_channel | int }}_enable"; done'
+Restart=on-failure
+RestartSec=2
+WatchdogSec=10
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

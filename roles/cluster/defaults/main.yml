@@ -1,3 +1,7 @@
 ---
 cluster_llama_environment_dir: /etc/llama.cpp
 cluster_llama_model_path: "{{ llama_model_dir }}/{{ llama_model_filename }}"
+llama_jinja_enabled: false  # noqa: var-naming[no-role-prefix]
+llama_prompt_cache_ram_mib: null  # noqa: var-naming[no-role-prefix]
+llama_cache_idle_slots_enabled: true  # noqa: var-naming[no-role-prefix]
+llama_parallel_slots: 1  # noqa: var-naming[no-role-prefix]

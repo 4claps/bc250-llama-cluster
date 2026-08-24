@@ -3,6 +3,8 @@
   ansible.builtin.import_playbook: playbooks/00-preflight.yml
 - name: Configure base operating system
   ansible.builtin.import_playbook: playbooks/10-base.yml
+- name: Establish required BC250 cooling
+  ansible.builtin.import_playbook: playbooks/15-cooling.yml
 - name: Establish BC250 hardware baseline
   ansible.builtin.import_playbook: playbooks/20-hardware.yml
 - name: Configure backend network

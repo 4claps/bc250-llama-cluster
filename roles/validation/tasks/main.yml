@@ -168,6 +168,35 @@
     - bc250_gpu_governor_enabled | bool
     - bc250_gpu_governor_performance_mode_enabled | bool
 
+- name: Verify qualified BC250 fan controller is active
+  ansible.builtin.command:
+    argv: [systemctl, is-active, bc250-fan-control.service]
+  changed_when: false
+  when: bc250_fan_control_enabled | bool
+
+- name: Read qualified BC250 fan telemetry
+  ansible.builtin.shell: |
+    set -o pipefail
+    for path in /sys/class/hwmon/hwmon*; do
+      if [[ $(<"$path/name") == nct6686 ]]; then
+        printf 'mode=%s pwm=%s rpm=%s\n' \
+          "$(<"$path/pwm{{ bc250_fan_control_channel }}_enable")" \
+          "$(<"$path/pwm{{ bc250_fan_control_channel }}")" \
+          "$(<"$path/fan{{ bc250_fan_control_channel }}_input")"
+        exit 0
+      fi
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: validation_fan_telemetry
+  changed_when: false
+  failed_when: >-
+    validation_fan_telemetry.rc != 0 or
+    validation_fan_telemetry.stdout is not search('mode=1') or
+    validation_fan_telemetry.stdout is search('rpm=0(?:$| )')
+  when: bc250_fan_control_enabled | bool
+
 - name: Read backend interface from NetworkManager
   ansible.builtin.command:
     argv: [nmcli, -g, GENERAL.DEVICES, connection, show, "{{ backend_connection_name }}"]

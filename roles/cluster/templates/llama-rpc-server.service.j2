@@ -3,6 +3,10 @@ Description=llama.cpp Vulkan RPC worker
 Documentation=https://github.com/ggml-org/llama.cpp/tree/master/tools/rpc
 Wants=network-online.target
 After=network-online.target
+{% if not (bc250_cooling_bypass | default(false) | bool) %}
+Requires=bc250-fan-control.service
+After=bc250-fan-control.service
+{% endif %}
 
 [Service]
 Type=simple

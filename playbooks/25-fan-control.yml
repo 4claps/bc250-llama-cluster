@@ -1,0 +1,22 @@
+---
+- name: Configure BC250 fan driver and qualified automatic control
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: true
+  tags: [fan_control]
+  pre_tasks:
+    - name: Require exactly one explicitly limited fan-control target
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == 1
+        fail_msg: Fan-control operations require an explicit one-host --limit.
+  tasks:
+    - name: Detect BC250 hardware
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: detect.yml
+
+    - name: Configure pinned fan support
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: fan_control.yml

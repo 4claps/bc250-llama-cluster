@@ -1,0 +1,42 @@
+---
+- name: Establish required BC250 cooling before hardware tuning
+  hosts: bc250_cluster
+  serial: 1
+  gather_facts: true
+  tags: [cooling, fan_control]
+  pre_tasks:
+    - name: Require cooling or an explicit non-production bypass
+      ansible.builtin.assert:
+        that:
+          - bc250_cooling_required | bool or bc250_cooling_bypass | bool
+        fail_msg: >-
+          Cooling is a production prerequisite. Set bc250_cooling_required=true,
+          or explicitly opt into the non-production bc250_cooling_bypass.
+
+    - name: Warn about non-production cooling bypass
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: cooling validation is bypassed. This host is not qualified
+          for sustained inference and production services must remain disabled.
+      when: bc250_cooling_bypass | bool
+
+  tasks:
+    - name: Detect BC250 hardware before cooling setup
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: detect.yml
+      when: not bc250_cooling_bypass | bool
+
+    - name: Install and start required BC250 fan control
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: fan_control.yml
+      when: not bc250_cooling_bypass | bool
+
+    - name: Validate live fan telemetry and control
+      ansible.builtin.include_role:
+        name: bc250_hardware
+        tasks_from: fan_validate.yml
+      when:
+        - not bc250_cooling_bypass | bool
+        - not ansible_check_mode

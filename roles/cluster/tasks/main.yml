@@ -1,4 +1,14 @@
 ---
+- name: Refuse production inference without qualified cooling
+  ansible.builtin.assert:
+    that:
+      - not (bc250_cooling_bypass | default(false) | bool)
+      - bc250_fan_control_enabled | default(false) | bool
+      - bc250_fan_control_channel_validated | default(false) | bool
+    fail_msg: >-
+      llama.cpp production services require qualified automatic fan control.
+      A cooling bypass is non-production and cannot enable inference services.
+
 - name: Create llama.cpp service group
   ansible.builtin.group:
     name: "{{ llama_system_group }}"

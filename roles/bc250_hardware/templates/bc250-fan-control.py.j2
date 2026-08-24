@@ -1,0 +1,97 @@
+#!/usr/bin/python3
+import logging
+import os
+import signal
+import socket
+import time
+from pathlib import Path
+
+CHANNEL = {{ bc250_fan_control_channel | int }}
+CURVE = {{ bc250_fan_control_curve | to_json }}
+INTERVAL = {{ bc250_fan_control_interval_seconds | int }}
+TELEMETRY = {{ bc250_fan_control_telemetry_seconds | int }}
+running = True
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+
+def hwmon():
+    for path in Path("/sys/class/hwmon").glob("hwmon*"):
+        try:
+            if path.joinpath("name").read_text().strip() == "nct6686":
+                return path
+        except OSError:
+            pass
+    raise RuntimeError("nct6687 hwmon device not found")
+
+
+def temperature():
+    values = []
+    for path in Path("/sys/class/drm").glob("card*/device/hwmon/hwmon*/temp1_input"):
+        try:
+            values.append(int(path.read_text()) / 1000)
+        except (OSError, ValueError):
+            pass
+    if not values:
+        raise RuntimeError("GPU temperature unavailable")
+    return max(values)
+
+
+def percent(temp):
+    if temp <= CURVE[0]["temperature"]:
+        return CURVE[0]["percent"]
+    for low, high in zip(CURVE, CURVE[1:]):
+        if temp <= high["temperature"]:
+            ratio = (temp - low["temperature"]) / (high["temperature"] - low["temperature"])
+            return round(low["percent"] + ratio * (high["percent"] - low["percent"]))
+    return CURVE[-1]["percent"]
+
+
+def automatic(path):
+    path.joinpath(f"pwm{CHANNEL}_enable").write_text("2\n")
+
+
+def notify(message):
+    address = os.environ.get("NOTIFY_SOCKET")
+    if not address:
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as channel:
+        channel.connect(address)
+        channel.sendall(message.encode())
+
+
+def stop(_signum, _frame):
+    global running
+    running = False
+
+
+signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGINT, stop)
+device = hwmon()
+label = device.joinpath(f"fan{CHANNEL}_label")
+if label.exists() and label.read_text().strip() != "Pump Fan":
+    raise RuntimeError(f"channel {CHANNEL} label is not Pump Fan")
+pwm = device.joinpath(f"pwm{CHANNEL}")
+enable = device.joinpath(f"pwm{CHANNEL}_enable")
+rpm = device.joinpath(f"fan{CHANNEL}_input")
+last_log = 0.0
+try:
+    notify("READY=1")
+    while running:
+        temp = temperature()
+        duty = percent(temp)
+        enable.write_text("1\n")
+        pwm.write_text(f"{round(duty * 255 / 100)}\n")
+        now = time.monotonic()
+        if now - last_log >= TELEMETRY:
+            fan_rpm = int(rpm.read_text())
+            logging.info("gpu_temp_c=%.1f fan_percent=%d fan_rpm=%d", temp, duty, fan_rpm)
+            if fan_rpm <= 0:
+                raise RuntimeError("qualified fan tachometer reports zero RPM")
+            last_log = now
+        notify("WATCHDOG=1")
+        time.sleep(INTERVAL)
+finally:
+    automatic(device)

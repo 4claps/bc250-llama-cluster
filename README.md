@@ -125,20 +125,18 @@ token context, automatic layer split, Bowie local Vulkan plus Crockett RPC, and
 | Bowie peak | 1750 MHz, 49°C, 85.39 W PPT |
 | Crockett peak | 1750 MHz, 66°C, 80.34 W PPT |
 
-For Hermes Agent, the current recommendation is
-`Qwen3-Coder-30B-A3B-Instruct-Q4_K_M` with a 65,536-token context, Q8_0 K/V
-cache, both GPUs, and automatic layer split. It loaded and completed the 64K
-tests. In the original sustained run, Crockett reached approximately 90°C and
-throttled while Bowie peaked at 67°C. After the physical cooling changes in
-[Hardware preparation](docs/hardware-prep.md), the equivalent 18,976-token
-prompt plus 1,024-token generation qualification peaked at 61°C on Bowie and
-66°C on Crockett. Both GPUs held 1750 MHz without thermal throttling, GPU
-errors, resets, or RPC failures. Crockett therefore passes sustained thermal
-qualification for this workload without a software-profile or thermal-limit
-change.
+For Hermes Agent, the deployed recommendation is `Qwen3.6-35B-A3B-Q4_K_M`
+with a 65,536-token context, Q8_0 K/V cache, one slot, both GPUs, and automatic
+layer split. Cross-request host-RAM prompt caching is disabled while the normal
+Q8_0 K/V cache remains enabled. The qualified automatic fan curve held Bowie
+to 63°C and Crockett to 66°C during two consecutive 44,927-token prompt plus
+2,048-token generation passes. Both GPUs held 1750 MHz without thermal
+throttling, GPU errors, resets, or RPC failures.
 
 See [the deployed-state record](docs/current-state.md) and the complete
 [Hermes model bake-off](docs/hermes-model-bakeoff.md).
+Fan installation, qualification, rollback, and telemetry are documented in
+[Fan control](docs/fan-control.md).
 
 ## Hardware safety
 
@@ -200,9 +198,11 @@ ansible-lint
 yamllint .
 ```
 
-`site.yml` performs preflight, Fedora configuration, BC250 hardware management,
-networking, Vulkan installation, the pinned llama.cpp build, services, and
-validation. Read [operations](docs/operations.md), [architecture](docs/architecture.md),
+`site.yml` performs preflight, Fedora configuration, required BC250 cooling
+installation and live validation, BC250 hardware management, networking,
+Vulkan installation, the pinned llama.cpp build, services, and validation.
+Cooling failure stops the deployment before hardware tuning or sustained
+inference services. Read [operations](docs/operations.md), [architecture](docs/architecture.md),
 [performance tuning](docs/performance-tuning.md), and
 [troubleshooting](docs/troubleshooting.md) before targeting hardware.
 

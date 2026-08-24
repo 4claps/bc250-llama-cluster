@@ -43,10 +43,22 @@ llama_api_allowed_cidrs:
   - 192.0.2.0/24
 llama_gpu_layers: all
 llama_context_size: 8192
+llama_parallel_slots: 1
 llama_split_mode: layer
 llama_tensor_split: []
 llama_cache_type_k: q8_0
 llama_cache_type_v: q8_0
+
+# Cooling is mandatory for production. The public inventory intentionally does
+# not claim a PWM channel is qualified, so a hardware run fails before tuning
+# or inference rather than guessing a channel.
+bc250_cooling_required: true
+bc250_cooling_bypass: false
+bc250_fan_driver_enabled: true
+bc250_fan_control_enabled: true
+bc250_fan_control_channel: 2
+bc250_fan_control_fan_mask: 2
+bc250_fan_control_channel_validated: false
 
 # Safe public defaults: install the read-only/status tool, but do not change or
 # persist CU routing. Never copy another board's WGP table into these values.
