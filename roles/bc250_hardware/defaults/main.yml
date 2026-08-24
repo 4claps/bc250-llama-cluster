@@ -35,6 +35,27 @@ bc250_ttm_enabled: false  # noqa: var-naming[no-role-prefix]
 bc250_ttm_pages_limit: 3014656  # noqa: var-naming[no-role-prefix]
 bc250_ttm_page_pool_size: 3014656  # noqa: var-naming[no-role-prefix]
 
+# NCT6686D cooling is mandatory; channel validation remains per physical board.
+bc250_cooling_required: true  # noqa: var-naming[no-role-prefix]
+bc250_cooling_bypass: false  # noqa: var-naming[no-role-prefix]
+bc250_fan_driver_enabled: true  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_enabled: true  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_channel: 2  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_fan_mask: 2  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_channel_validated: false  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_interval_seconds: 2  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_telemetry_seconds: 10  # noqa: var-naming[no-role-prefix]
+bc250_fan_control_curve:  # noqa: var-naming[no-role-prefix]
+  - {temperature: 40, percent: 45}
+  - {temperature: 55, percent: 55}
+  - {temperature: 65, percent: 70}
+  - {temperature: 75, percent: 90}
+  - {temperature: 80, percent: 100}
+bc250_hardware_nct6687_version: 4864fd681346119cf17417f82934a8ce05d88ff6
+bc250_hardware_nct6687_source_sha256: 5924a508a6d4790c5a32dcae60d331d9ac22d9728452302cd83494514bba07cf
+bc250_hardware_nct6687_source_dir: /usr/local/src/nct6687d
+bc250_hardware_fan_service: bc250-fan-control.service
+
 bc250_hardware_cpu_governor_repo: https://github.com/bc250-collective/bc250_smu_oc.git
 bc250_hardware_cpu_governor_version: 43d6b4c6e38c57bc9ec8908c44675ce7d5fd3d2f
 bc250_hardware_cpu_governor_source_dir: /usr/local/src/bc250_smu_oc

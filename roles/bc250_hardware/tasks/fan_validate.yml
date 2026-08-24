@@ -1,0 +1,39 @@
+---
+- name: Verify fan-control service is enabled
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ bc250_hardware_fan_service }}"]
+  changed_when: false
+
+- name: Verify fan-control service is active
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ bc250_hardware_fan_service }}"]
+  changed_when: false
+
+- name: Read qualified fan mode, PWM, and RPM
+  ansible.builtin.shell: |
+    set -o pipefail
+    for path in /sys/class/hwmon/hwmon*; do
+      if [[ $(<"$path/name") == nct6686 ]]; then
+        [[ $(<"$path/fan{{ bc250_fan_control_channel }}_label") == "Pump Fan" ]]
+        printf 'mode=%s pwm=%s rpm=%s\n' \
+          "$(<"$path/pwm{{ bc250_fan_control_channel }}_enable")" \
+          "$(<"$path/pwm{{ bc250_fan_control_channel }}")" \
+          "$(<"$path/fan{{ bc250_fan_control_channel }}_input")"
+        exit 0
+      fi
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: bc250_hardware_fan_telemetry
+  changed_when: false
+
+- name: Require live manual control and tachometer feedback
+  ansible.builtin.assert:
+    that:
+      - bc250_hardware_fan_telemetry.stdout is search('mode=1')
+      - bc250_hardware_fan_telemetry.stdout is not search('rpm=0(?:$| )')
+    fail_msg: >-
+      Required cooling validation failed: the qualified NCT6686D PWM channel
+      is not under controller management or has no RPM feedback. Sustained
+      inference must not be enabled.
