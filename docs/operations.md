@@ -6,12 +6,15 @@ The normal `site.yml` order is:
 
 1. Read-only preflight.
 2. Base Fedora configuration.
-3. BC250 hardware baseline, read-only CU topology, and selected performance profile.
-4. Dedicated backend networking.
-5. Fedora RADV/Vulkan.
-6. Pinned llama.cpp Vulkan/RPC build.
-7. Crockett RPC service, then Bowie coordinator service.
-8. Cluster validation and temporary bandwidth test.
+3. BC250 detection, pinned fan/sensor driver, fan telemetry, fail-safe fan
+   control, and live cooling validation.
+4. BC250 hardware baseline, read-only CU topology, TTM, and selected
+   performance profile.
+5. Dedicated backend networking.
+6. Fedora RADV/Vulkan.
+7. Pinned llama.cpp Vulkan/RPC build.
+8. Crockett RPC service, then Bowie coordinator service.
+9. Cluster validation and temporary bandwidth test.
 
 Hardware and network plays use `serial: 1` where a failure could affect access.
 Before deployment, run local syntax and lint checks. Check mode should then be
@@ -30,6 +33,11 @@ operation, or hardware stability.
 The Qwen3-Coder-Next fit plan is retained as historical methodology. The
 completed 64K results and current Hermes recommendation are in
 `docs/hermes-model-bakeoff.md`.
+
+Cooling is a hard production prerequisite. The cluster role refuses to enable
+inference services when cooling is bypassed or the configured fan channel is
+not positively qualified, and both systemd inference units require the fan
+controller. The explicit bypass is diagnostic and non-production only.
 
 ## Fedora update behavior
 
@@ -82,6 +90,26 @@ status calls and compares every active WGP against the approved per-host table
 when persistence is enabled; it performs no MMIO writes.
 
 ## Hermes agent access boundary
+
+Hermes runs on a separate existing client machine; this repository deploys
+only its inference backend. The client connects to Bowie's OpenAI-compatible
+API. It must not connect to Crockett's internal RPC service, and Hermes is not
+installed on either BC250 node.
+
+The validated client settings are:
+
+- Base URL: `http://10.0.0.170:8080/v1`.
+- Model identifier:
+  `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_M.gguf`.
+- Provider mode: custom OpenAI-compatible.
+- Context size: 65,536 tokens.
+- Recommended request timeout: 300 seconds.
+- API authentication: none in the validated deployment; management-network
+  firewall policy is the access-control boundary.
+- For short deterministic answers or forced tool calls, pass
+  `chat_template_kwargs: {"enable_thinking": false}` so the completion budget
+  is not consumed by Qwen reasoning. Thinking can remain enabled for normal
+  reasoning workflows when the client provides an adequate token budget.
 
 Treat Hermes as an untrusted automation principal even when it runs on the
 management LAN. Give it a dedicated SSH key and account rather than access to

@@ -1,5 +1,38 @@
 # Hermes model bake-off
 
+## Final production bake-off update
+
+The later five-model production bake-off supersedes the preliminary ranking
+below. It used the same pinned llama.cpp revision, 65,536-token target, Q8_0
+K/V cache, automatic split, and qualified cooling baseline.
+
+1. **Qwen3.6-35B-A3B Q4_K_M** — best overall Hermes backend, with 23/27
+   practical successes (85.2%) and 51.72 tok/s standardized generation.
+2. **gpt-oss-20b MXFP4** — useful fast/light alternative, with 21/27 practical
+   successes and 66.30 tok/s generation, but more tool errors and turns.
+3. **Qwen3-Coder-30B-A3B-Instruct Q4_K_M** — retained as the historical
+   control, with 19/27 practical successes under the final timeout policy.
+4. **Qwen3.8-27B Q4_K_M** — not recommended because of excessive and highly
+   variable agent latency.
+5. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
+   the 180-second timeout.
+
+The production selection is **Qwen3.6-35B-A3B Q4_K_M** at 65,536 context with
+Q8_0 K/V, one slot, all layers offloaded, and automatic layer split. The
+cross-request host-RAM prompt cache is disabled with
+`--cache-ram 0 --no-cache-idle-slots`; these flags do not disable the normal KV
+cache. During the bake-off, retained unrelated large prompts caused the
+coordinator to be OOM-killed until that cross-request cache was disabled.
+
+The subsequent [performance-profile characterization](qwen36-performance-profiles.md)
+confirmed Moderate/1750 as the preferred 24/7 Qwen3.6 profile. Strong/1850 and
+Aggressive/2000 were stable but did not provide enough real-agent benefit to
+replace it.
+
+The sections below preserve the earlier Qwen3-Coder/Hermes-4 fit campaign and
+post-cooling history. They are historical evidence, not the current model
+recommendation.
+
 Tested 2026-08-22 on the tagged `baseline-moderate-40cu` cluster. No clocks,
 voltage points, CU routing, kernel, Mesa, firmware, CPU cores, network settings,
 or memory settings were changed. The temporary llama-server overrides were
@@ -139,7 +172,7 @@ Hermes-4 quality testing was not used for ranking because llama-server capped
 the requested slot to the model's native 40,960-token context. A 40K quality
 result would not establish suitability for the required 64K Hermes workload.
 
-## Ranking and recommendation
+## Historical preliminary ranking
 
 1. **Best overall Hermes backend:** Qwen3-Coder-30B-A3B-Instruct Q4_K_M with
    65,536 context, Q8_0 KV, and automatic split.
@@ -151,7 +184,8 @@ result would not establish suitability for the required 64K Hermes workload.
 5. **Best fallback at required context:** Qwen3-Coder-Next UD-IQ1_S, with the
    important thermal and memory-pressure warnings above.
 
-Use **Qwen3-Coder-30B-A3B-Instruct Q4_K_M** as the default model selection, with
+At this preliminary stage, the result supported
+**Qwen3-Coder-30B-A3B-Instruct Q4_K_M** as the default model selection, with
 65,536 context, Q8_0 K/V cache, and automatic split. The original bake-off
 established the model recommendation but exposed Crockett's cooling failure.
 The post-cooling rerun eliminated that throttling without changing clocks,

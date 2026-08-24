@@ -1,6 +1,6 @@
 # Validated private deployment state
 
-Last verified: 2026-08-22.
+Last verified: 2026-08-24.
 
 ## Nodes and hardware
 
@@ -62,6 +62,12 @@ Vulkan, and 1,024 generated tokens:
 No thermal throttling, GPU reset, VM fault, ring timeout, allocation failure, or
 new MCE was observed during the Moderate run.
 
+The later Qwen3.6 characterization compared the exact upstream Moderate/1750,
+Strong/1850, and Aggressive/2000 profiles. Both higher profiles were stable,
+but Moderate remains the recommended 24/7 setting because it has the best
+generation efficiency and no meaningful real-Hermes disadvantage. See
+[Qwen3.6 performance profiles](qwen36-performance-profiles.md).
+
 The baseline retains the stock Fedora kernel and Mesa/RADV. Apart from the
 documented TTM command-line limits, it has no UMA modification, CPU core unlock,
 GFX1013 compute-queue patch, or other custom kernel/amdgpu change.
@@ -75,20 +81,23 @@ GFX1013 compute-queue patch, or other custom kernel/amdgpu change.
 - Crockett RPC: `10.250.0.2:50052`, backend-only
 - Model split: automatic layer split over Bowie `Vulkan0` and Crockett RPC `Vulkan0`
 
-The installed benchmark model is intentionally not tracked by Git:
+The production model is intentionally not tracked by Git:
 
-- Model: `Qwen3-30B-A3B-Q4_K_M`
-- Path on Bowie: `/var/lib/llama.cpp/models/Qwen3-30B-A3B-Q4_K_M.gguf`
-- Size: 18,556,685,824 bytes (18.56 GB / 17.28 GiB)
-- SHA-256: `0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5`
-- Source: `Qwen/Qwen3-30B-A3B-GGUF`
+- Model: `Qwen3.6-35B-A3B-Q4_K_M`.
+- Path on Bowie: `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_M.gguf`.
+- SHA-256: `671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7`.
+- Context: 65,536 tokens.
+- KV cache: Q8_0 K and Q8_0 V, one slot.
+- Offload: all layers, automatic `layer` split over Bowie local Vulkan and
+  Crockett RPC Vulkan.
+- Prompt-cache safety: `--cache-ram 0 --no-cache-idle-slots` disables the
+  cross-request host-RAM prompt cache that caused an OOM during the bake-off;
+  it does not disable the normal Q8_0 K/V cache.
 
-The completed Hermes bake-off recommends
-`Qwen3-Coder-30B-A3B-Instruct-Q4_K_M` with a 65,536-token context, Q8_0 K/V
-cache, and automatic layer split. `Qwen3-Coder-Next-UD-IQ1_S` also loaded and
-ran at 64K, but its tighter memory margin, slower generation, and aggressive
-quantization make it the fallback rather than the default. Hermes-4-14B is
-limited to 40,960 tokens and does not meet the intended Hermes requirement.
+The completed Hermes bake-off selected Qwen3.6 as the best overall backend.
+`gpt-oss-20b` MXFP4 remains the useful fast/light alternative. The earlier
+Qwen3-Coder-30B-A3B-Instruct Q4_K_M result is retained as a historical control,
+not the production recommendation.
 
 The original 64K Qwen3-Coder-30B run was functionally successful, but Crockett
 reached approximately 90°C and throttled while Bowie peaked at 67°C. After
@@ -98,11 +107,16 @@ llama.cpp revision, 65,536 context, Q8_0 K/V, one slot, and automatic split.
 Crockett peaked at 66°C, averaged 62.5°C during late-prompt heat soak, and held
 1750 MHz without throttling. Bowie peaked at 61°C. Generation remained within
 normal variance at 77.10 tokens/s, and no GPU reset, fault, RPC error, or
-backend timeout occurred. Crockett now passes sustained thermal qualification
-without a software-profile or thermal-limit change.
+backend timeout occurred. Crockett now passes sustained thermal qualification.
+The later qualified automatic fan-control implementation and Qwen3.6 profile
+characterization supersede any earlier concern that fan response was unknown.
 
-Router mode discovers models at service startup. Restart
-`llama-server.service` after adding another GGUF to the model directory.
+The coordinator is configured for the single declared production GGUF rather
+than router-mode discovery. Its OpenAI-compatible API is bound to the
+management address and permitted only from configured trusted management
+CIDRs. It has no built-in API authentication in this deployment; network
+firewall policy is the access-control boundary. Crockett's unauthenticated RPC
+listener remains bound only to the dedicated backend address.
 
 ## Validation and operations
 
