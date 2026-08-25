@@ -62,6 +62,12 @@ prompt-processing tokens/s, generation tokens/s, time to first token, request
 latency, backend throughput, memory, clocks, temperatures, throttling, and GPU
 faults. Preserve raw private results under the gitignored `benchmarks/private/`.
 
+The completed [Ministral 3 8B single-node versus RPC comparison](ministral-single-vs-rpc.md)
+is the small dense-model case. On the tested 2.5 GbE layer split, RPC improved
+long-prompt prefill by 55.85% but reduced generation throughput by 29.53%.
+Small models that fit locally should therefore default to one node unless a
+prefill-heavy workload is proven to benefit.
+
 ## Qwen3-Coder-Next historical fit plan
 
 The [fit qualification plan](qwen3-coder-next-fit.md) records the analysis that
