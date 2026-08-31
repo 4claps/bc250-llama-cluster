@@ -1,0 +1,11 @@
+---
+bc250_cluster:
+  children:
+    observability_targets:
+      hosts:
+        bowie:
+          ansible_host: <BOwie_BACKEND_IP>
+          ansible_user: duncan
+        crockett:
+          ansible_host: <CROCKETT_BACKEND_IP>
+          ansible_user: duncan

@@ -1,0 +1,8 @@
+---
+- name: Install and configure node_exporter
+  hosts: bc250_cluster
+  become: true
+  gather_facts: true
+  tags: [observability, node_exporter]
+  roles:
+    - role: observability

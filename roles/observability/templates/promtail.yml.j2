@@ -1,0 +1,26 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/promtail/positions.yaml
+
+clients:
+  - url: "{{ observability_loki_url }}"
+
+scrape_configs:
+  - job_name: journal
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: systemd-logs
+          __path__: /var/log/journal
+
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/syslog
