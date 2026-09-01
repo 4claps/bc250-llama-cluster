@@ -4,8 +4,8 @@ bc250_cluster:
     bc250_nodes:
       hosts:
         bowie:
-          ansible_host: <BOWIE_BACKEND_IP>
+          ansible_host: 10.250.0.1
           ansible_user: duncan
         crockett:
-          ansible_host: <CROCKETT_BACKEND_IP>
+          ansible_host: 10.250.0.2
           ansible_user: duncan
