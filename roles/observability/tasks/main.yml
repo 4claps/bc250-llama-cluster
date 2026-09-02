@@ -11,8 +11,6 @@
     src: "/tmp/node_exporter-{{ observability_node_exporter_version }}.linux-amd64.tar.gz"
     dest: /tmp
     remote_src: true
-    list_files: true
-  register: node_exporter_extract
   when: observability_install_node_exporter | bool
 
 - name: Copy node_exporter binary to /usr/local/bin
@@ -20,6 +18,7 @@
     src: "/tmp/node_exporter-{{ observability_node_exporter_version }}.linux-amd64/node_exporter"
     dest: /usr/local/bin/node_exporter
     mode: "0755"
+    remote_src: true
   when: observability_install_node_exporter | bool
 
 - name: Deploy node_exporter systemd service
@@ -50,15 +49,14 @@
     src: "/tmp/promtail-linux-amd64.zip"
     dest: /tmp
     remote_src: true
-    list_files: true
-  register: promtail_extract
   when: observability_install_promtail | bool
 
 - name: Copy Promtail binary to /usr/local/bin
   ansible.builtin.copy:
-    src: "/tmp/promtail-linux-amd64/promtail"
+    src: "/tmp/promtail-linux-amd64"
     dest: /usr/local/bin/promtail
     mode: "0755"
+    remote_src: true
   when: observability_install_promtail | bool
 
 - name: Create Promtail config directory
