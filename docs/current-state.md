@@ -99,6 +99,12 @@ The completed Hermes bake-off selected Qwen3.6 as the best overall backend.
 Qwen3-Coder-30B-A3B-Instruct Q4_K_M result is retained as a historical control,
 not the production recommendation.
 
+The later `Qwen3.6-35B-A3B-UD-Q4_K_XL` follow-up was stable at 65,536 context
+but did not change production: it generated 2.46% more slowly than Q4_K_M,
+left only about 1.1 GB free Vulkan memory per node, and triggered the Hermes
+early-stop rule after two 180-second timeouts in its first nine trials. See the
+[Hermes model bake-off](hermes-model-bakeoff.md) for the comparison.
+
 The original 64K Qwen3-Coder-30B run was functionally successful, but Crockett
 reached approximately 90°C and throttled while Bowie peaked at 67°C. After
 thermal-interface replacement, a rear heatsink, and increased physical board

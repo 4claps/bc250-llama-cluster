@@ -2,9 +2,10 @@
 
 ## Final production bake-off update
 
-The later five-model production bake-off supersedes the preliminary ranking
-below. It used the same pinned llama.cpp revision, 65,536-token target, Q8_0
-K/V cache, automatic split, and qualified cooling baseline.
+The later production bake-off and subsequent UD-Q4_K_XL follow-up supersede
+the preliminary ranking below. They used the same pinned llama.cpp revision,
+65,536-token target, Q8_0 K/V cache, automatic split, and qualified cooling
+baseline.
 
 1. **Qwen3.6-35B-A3B Q4_K_M** — best overall Hermes backend, with 23/27
    practical successes (85.2%) and 51.72 tok/s standardized generation.
@@ -12,9 +13,12 @@ K/V cache, automatic split, and qualified cooling baseline.
    successes and 66.30 tok/s generation, but more tool errors and turns.
 3. **Qwen3-Coder-30B-A3B-Instruct Q4_K_M** — retained as the historical
    control, with 19/27 practical successes under the final timeout policy.
-4. **Qwen3.8-27B Q4_K_M** — not recommended because of excessive and highly
+4. **Qwen3.6-35B-A3B UD-Q4_K_XL** — not recommended after two of its first
+   nine Hermes trials reached the 180-second timeout, triggering the standard
+   early-stop rule.
+5. **Qwen3.8-27B Q4_K_M** — not recommended because of excessive and highly
    variable agent latency.
-5. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
+6. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
    the 180-second timeout.
 
 The production selection is **Qwen3.6-35B-A3B Q4_K_M** at 65,536 context with
@@ -28,6 +32,48 @@ The subsequent [performance-profile characterization](qwen36-performance-profile
 confirmed Moderate/1750 as the preferred 24/7 Qwen3.6 profile. Strong/1850 and
 Aggressive/2000 were stable but did not provide enough real-agent benefit to
 replace it.
+
+### Qwen3.6 UD-Q4_K_XL follow-up
+
+The follow-up tested `unsloth/Qwen3.6-35B-A3B-GGUF` file
+`Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf` (22,360,456,160 bytes, SHA-256
+`707a55a8a4397ecde44de0c499d3e68c1ad1d240d1da65826b4949d1043f4450`).
+No llama.cpp rebuild or compatibility override was needed. The model loaded at
+65,536 context, offloaded all 41 layers, and used the production-equivalent
+flags, Moderate/1750 profile, cooling, and automatic layer split used by
+Q4_K_M.
+
+| Metric | Q4_K_M control | UD-Q4_K_XL | XL change |
+| --- | ---: | ---: | ---: |
+| GGUF size | 20.42 GB | 22.36 GB | +9.51% |
+| Standard prompt processing | 588.87 tok/s | 592.14 tok/s | +0.56% |
+| Standard generation | 51.72 tok/s | 50.45 tok/s | -2.46% |
+| Standard TTFT | 32.27 s | 32.09 s | -0.55% |
+| Standard request | 52.05 s | 52.37 s | +0.62% |
+| 44,927-token generation | 41.63 tok/s | 40.84 tok/s | -1.90% |
+| Minimum free Vulkan, Bowie | 2.24 GB | 1.11 GB | -50.3% |
+| Minimum free Vulkan, Crockett | 1.95 GB | 1.13 GB | -41.9% |
+
+The official Hermes policy stopped the XL run after its first repetition of
+all nine tasks: 5/9 practical successes, 143.6-second mean, 152.8-second
+median, and two `MODEL_TIMEOUT_180S` results. For the same first repetitions,
+Q4_K_M achieved 8/9 practical successes with a 100.3-second mean; XL was about
+43% slower. The five successful XL tasks averaged 3.6 LLM turns and 3.2 tool
+calls, with no tool execution errors, but latency and missed outcomes dominate
+that clean tool-error count.
+
+A supplemental 2,048-token stream at 44,927-token input measured successive
+generation quarters at 40.78, 40.87, 40.77, and 40.64 tok/s. The 0.36% decline
+from the first to final quarter is negligible: XL did not suffer a progressive
+generation collapse, but it also did not improve throughput. Both boards held
+1750 MHz; peak GPU temperatures were 66/68°C in the long-context run and
+66/67°C in the Hermes run. No fan safety event, thermal throttle, GPU reset,
+page fault, Vulkan error, or RPC failure occurred.
+
+**Verdict:** UD-Q4_K_XL is technically stable but is not a replacement for
+Q4_K_M, `gpt-oss-20b`, or the retained Qwen3-Coder control. It consumes more
+memory, generates more slowly, and was materially less useful in the Hermes
+tasks. Q4_K_M remains the production model.
 
 The sections below preserve the earlier Qwen3-Coder/Hermes-4 fit campaign and
 post-cooling history. They are historical evidence, not the current model
