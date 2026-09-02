@@ -132,3 +132,26 @@ Keep the agent's SSH private key, API credentials, and model-download
 credentials outside this repository. Review the wrapper and its sudoers entry
 after every allowlist change, and retain Ansible output or system journal logs
 for unattended actions.
+
+## RPC tensor cache cleanup
+
+The `ggml-rpc-server` binary (stock llama.cpp) persists tensor data to disk at
+`/var/cache/llama.cpp/rpc/rpc/` when the `--cache` flag is active. The binary
+has **no** built-in flag to limit cache size, set an eviction policy, or control
+TTL — it only has `--cache` (on/off). In practice the cache grows unbounded at
+roughly 56 GB/day, filling a 250 GB filesystem in under five days.
+
+Ansible deploys a daily systemd timer (`llama-rpc-cache-cleanup.timer`) that
+runs `find /var/cache/llama.cpp/rpc/rpc/ -type f -mtime +1 -delete`, removing
+any tensor files older than 24 hours. This runs on all `llama_rpc_workers`
+(Crockett). It **never** deletes the directory itself — removing the directory
+causes `ggml-rpc-server` to fail on restart because it recreates the directory
+with restrictive permissions that block the service account.
+
+If the cache needs manual cleanup, use:
+
+```bash
+sudo find /var/cache/llama.cpp/rpc/rpc/ -type f -mtime +1 -delete
+```
+
+Do **not** `rm -rf /var/cache/llama.cpp/rpc/` or remove the directory.

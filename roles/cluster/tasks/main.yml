@@ -112,6 +112,36 @@
     - inventory_hostname in groups.llama_rpc_workers
     - not ansible_check_mode
 
+- name: Install RPC cache cleanup service
+  ansible.builtin.template:
+    src: llama-rpc-cache-cleanup.service.j2
+    dest: /etc/systemd/system/llama-rpc-cache-cleanup.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: inventory_hostname in groups.llama_rpc_workers
+  notify: Reload llama.cpp systemd units
+
+- name: Install RPC cache cleanup timer
+  ansible.builtin.template:
+    src: llama-rpc-cache-cleanup.timer.j2
+    dest: /etc/systemd/system/llama-rpc-cache-cleanup.timer
+    owner: root
+    group: root
+    mode: "0644"
+  when: inventory_hostname in groups.llama_rpc_workers
+  notify: Reload llama.cpp systemd units
+
+- name: Enable RPC cache cleanup timer
+  ansible.builtin.systemd_service:
+    name: llama-rpc-cache-cleanup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when:
+    - inventory_hostname in groups.llama_rpc_workers
+    - not ansible_check_mode
+
 - name: Discover management firewall zone
   ansible.builtin.command:
     argv: [firewall-cmd, --get-zone-of-interface, "{{ ansible_facts.default_ipv4.interface }}"]
