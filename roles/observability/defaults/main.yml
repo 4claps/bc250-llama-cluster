@@ -1,0 +1,11 @@
+# ── Observability: node_exporter ──────────────────────────
+observability_node_exporter_version: "1.8.2"
+observability_node_exporter_port: 9100
+
+# ── Observability: Promtail ───────────────────────────────
+observability_promtail_version: "3.4.2"
+observability_loki_url: "http://10.0.30.26:3100/loki/api/v1/push"
+
+# ── Ansible-managed services ─────────────────────────────
+observability_install_node_exporter: true
+observability_install_promtail: true

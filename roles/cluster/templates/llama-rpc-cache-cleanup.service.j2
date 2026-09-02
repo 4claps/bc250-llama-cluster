@@ -1,0 +1,8 @@
+[Unit]
+Description=Clean up llama.cpp RPC tensor cache older than one day
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find {{ llama_rpc_cache_dir }}/rpc/ -type f -mtime +1 -delete
+StandardOutput=journal
+StandardError=journal

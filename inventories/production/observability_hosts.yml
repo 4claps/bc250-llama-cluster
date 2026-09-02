@@ -1,0 +1,11 @@
+---
+bc250_cluster:
+  children:
+    bc250_nodes:
+      hosts:
+        bowie:
+          ansible_host: 10.0.30.70
+          ansible_user: duncan
+        crockett:
+          ansible_host: 10.0.30.71
+          ansible_user: duncan

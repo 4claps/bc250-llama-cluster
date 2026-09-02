@@ -15,5 +15,7 @@
   ansible.builtin.import_playbook: playbooks/50-llama-cpp.yml
 - name: Configure distributed inference services
   ansible.builtin.import_playbook: playbooks/60-cluster.yml
+- name: Install observability agents (node_exporter + Promtail)
+  ansible.builtin.import_playbook: playbooks/70-observability.yml
 - name: Verify cluster
   ansible.builtin.import_playbook: playbooks/90-validation.yml
