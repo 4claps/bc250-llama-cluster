@@ -100,9 +100,10 @@ The validated client settings are:
 
 - Base URL: `http://10.0.0.170:8080/v1`.
 - Model identifier:
-  `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_M.gguf`.
+  `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_L.gguf`
+  (promoted from Q4_K_M on 2026-09-09).
 - Provider mode: custom OpenAI-compatible.
-- Context size: 65,536 tokens.
+- Context size: 100,000 tokens.
 - Recommended request timeout: 300 seconds.
 - API authentication: none in the validated deployment; management-network
   firewall policy is the access-control boundary.

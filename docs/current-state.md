@@ -1,6 +1,6 @@
 # Validated private deployment state
 
-Last verified: 2026-08-24.
+Last verified: 2026-09-09.
 
 ## Nodes and hardware
 
@@ -83,10 +83,14 @@ GFX1013 compute-queue patch, or other custom kernel/amdgpu change.
 
 The production model is intentionally not tracked by Git:
 
-- Model: `Qwen3.6-35B-A3B-Q4_K_M`.
-- Path on Bowie: `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_M.gguf`.
-- SHA-256: `671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7`.
-- Context: 65,536 tokens.
+- Model: `Qwen3.6-35B-A3B-Q4_K_L` (promoted from Q4_K_M on 2026-09-09; see
+  [the Q4_K_L promotion record](qwen36-q4kl-promotion.md)).
+- Path on Bowie: `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_L.gguf`.
+- SHA-256: `49418000a889fef4b4353f36f598ad5a668c6ae374ac791bf923f76395a1bceb`.
+- GGUF size: 22,662,526,592 bytes. Q4_K_L keeps the embedding and output
+  weights at Q8_0 and Q4_K elsewhere.
+- Context: 100,000 tokens (`llama-server` allocates the slot as `n_ctx`
+  100096), raised from 65,536 in the same change window.
 - KV cache: Q8_0 K and Q8_0 V, one slot.
 - Offload: all layers, automatic `layer` split over Bowie local Vulkan and
   Crockett RPC Vulkan.
@@ -104,6 +108,13 @@ but did not change production: it generated 2.46% more slowly than Q4_K_M,
 left only about 1.1 GB free Vulkan memory per node, and triggered the Hermes
 early-stop rule after two 180-second timeouts in its first nine trials. See the
 [Hermes model bake-off](hermes-model-bakeoff.md) for the comparison.
+
+On 2026-09-09 the production quant was promoted from Q4_K_M to
+`Qwen3.6-35B-A3B-Q4_K_L`, which keeps the embedding and output weights at Q8_0.
+A post-swap bake-off showed generation, time to first token, and error-task
+pass rate all at parity with Q4_K_M, so this was an in-place quality upgrade
+rather than a re-evaluation of the model choice. Details and raw-artifact
+locations are in [the Q4_K_L promotion record](qwen36-q4kl-promotion.md).
 
 The original 64K Qwen3-Coder-30B run was functionally successful, but Crockett
 reached approximately 90°C and throttled while Bowie peaked at 67°C. After

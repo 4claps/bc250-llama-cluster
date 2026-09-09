@@ -1,5 +1,13 @@
 # Hermes model bake-off
 
+> **2026-09-09 update:** the winning model, `Qwen3.6-35B-A3B`, was promoted in
+> place from the Q4_K_M quant to Q4_K_L (Q8_0 embedding and output weights) and
+> the context size was raised to 100,000. A post-swap bake-off showed
+> generation, time to first token, and error-task pass rate all at parity with
+> Q4_K_M, so the model choice below is unchanged; only the quant and context
+> differ. See [the Q4_K_L promotion record](qwen36-q4kl-promotion.md). The
+> figures in this document are the original Q4_K_M bake-off.
+
 ## Final production bake-off update
 
 The later production bake-off and subsequent UD-Q4_K_XL follow-up supersede
@@ -21,9 +29,11 @@ baseline.
 6. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
    the 180-second timeout.
 
-The production selection is **Qwen3.6-35B-A3B Q4_K_M** at 65,536 context with
-Q8_0 K/V, one slot, all layers offloaded, and automatic layer split. The
-cross-request host-RAM prompt cache is disabled with
+The production selection is **Qwen3.6-35B-A3B** with Q8_0 K/V, one slot, all
+layers offloaded, and automatic layer split. It was qualified here on the
+Q4_K_M quant at 65,536 context; since 2026-09-09 it runs as the Q4_K_L quant at
+100,000 context (see [the Q4_K_L promotion record](qwen36-q4kl-promotion.md)).
+The cross-request host-RAM prompt cache is disabled with
 `--cache-ram 0 --no-cache-idle-slots`; these flags do not disable the normal KV
 cache. During the bake-off, retained unrelated large prompts caused the
 coordinator to be OOM-killed until that cross-request cache was disabled.

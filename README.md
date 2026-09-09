@@ -127,9 +127,14 @@ token context, automatic layer split, Bowie local Vulkan plus Crockett RPC, and
 | Bowie peak | 1750 MHz, 49°C, 85.39 W PPT |
 | Crockett peak | 1750 MHz, 66°C, 80.34 W PPT |
 
-For Hermes Agent, the deployed recommendation is `Qwen3.6-35B-A3B-Q4_K_M`
-with a 65,536-token context, Q8_0 K/V cache, one slot, both GPUs, and automatic
-layer split. Cross-request host-RAM prompt caching is disabled while the normal
+For Hermes Agent, the deployed recommendation is `Qwen3.6-35B-A3B-Q4_K_L`
+with a 100,000-token context, Q8_0 K/V cache, one slot, both GPUs, and automatic
+layer split. This started as `Qwen3.6-35B-A3B-Q4_K_M` at 65,536 context; the
+quant was promoted to Q4_K_L (Q8_0 embedding and output weights) at 100,000
+context on 2026-09-09 after a bake-off showed parity on generation, time to
+first token, and pass rate. See
+[the Q4_K_L promotion record](docs/qwen36-q4kl-promotion.md).
+Cross-request host-RAM prompt caching is disabled while the normal
 Q8_0 K/V cache remains enabled. The qualified automatic fan curve held Bowie
 to 63°C and Crockett to 66°C during two consecutive 44,927-token prompt plus
 2,048-token generation passes. Both GPUs held 1750 MHz without thermal
@@ -144,8 +149,8 @@ characterized optional profiles, not production defaults. `gpt-oss-20b`
 MXFP4 remains the fast/light alternative when its lower practical tool-use
 reliability is acceptable.
 The larger Qwen3.6 UD-Q4_K_XL quant was also tested, but tighter Vulkan margins,
-slower generation, and excessive Hermes task latency ruled it out as a
-replacement for the production Q4_K_M model.
+slower generation, and excessive Hermes task latency ruled it out; the
+production quant upgrade instead went to Q4_K_L.
 The [Ministral 3 8B single-node versus RPC comparison](docs/ministral-single-vs-rpc.md)
 shows why a dense model that fits on one BC250 should normally remain local:
 RPC improved prefill but reduced sustained generation speed and efficiency.

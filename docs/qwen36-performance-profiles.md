@@ -1,5 +1,10 @@
 # Qwen3.6 BC250 performance-profile characterization
 
+> This characterization was run on the Q4_K_M quant at 65,536 context. Since
+> 2026-09-09 production runs the Q4_K_L quant at 100,000 context; the
+> Moderate/1750 profile conclusion is unchanged. See
+> [the Q4_K_L promotion record](qwen36-q4kl-promotion.md).
+
 Tested 2026-08-24 on the two-node Fedora 44 cluster. This characterization
 compares the standard Moderate, Strong, and Aggressive profiles from the
 upstream BC250 community toolkit. It does not define new frequencies or
