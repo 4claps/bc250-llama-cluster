@@ -147,14 +147,14 @@ not enabled when fan telemetry/control is unqualified or bypassed.
 | Vulkan-visible memory | Approximately 12 GiB per node |
 | llama.cpp | `d775b8967a46d8beb110d444aa3b8938179e0dd8` |
 | Production profile | Moderate: CPU 3500 MHz, GPU 1750 MHz, 80°C limit |
-| Production model | Qwen3.6-35B-A3B Q4_K_M |
-| Context and KV | 65,536 tokens, Q8_0 K/V, one slot |
+| Production model | Qwen3.6-35B-A3B Q4_K_L (promoted from Q4_K_M 2026-09-09) |
+| Context and KV | 100,000 tokens, Q8_0 K/V, one slot |
 | Split | All layers offloaded, automatic layer split |
 
 Production llama-server arguments:
 
 ```text
---ctx-size 65536
+--ctx-size 100000
 --cache-type-k q8_0
 --cache-type-v q8_0
 --parallel 1
@@ -192,6 +192,12 @@ alternative.
 The larger UD-Q4_K_XL quant did not replace it: generation was 2.46% slower,
 minimum free Vulkan memory fell to about 1.1 GB per node, and two of its first
 nine Hermes tasks timed out.
+
+The table above is the original bake-off, run on the Q4_K_M quant. On
+2026-09-09 the winning model was promoted in place to the Q4_K_L quant (Q8_0
+embedding and output weights) at 100,000 context, with a post-swap bake-off
+showing generation, time to first token, and pass rate all at parity. See
+[the Q4_K_L promotion record](qwen36-q4kl-promotion.md).
 
 ## Performance-profile results
 
@@ -246,7 +252,7 @@ A successful deployment provides:
 - A private 2.5 GbE RPC path with no default route.
 - `llama-server` plus local Vulkan on node 1.
 - `ggml-rpc-server` plus Vulkan on node 2.
-- Qwen3.6 at 65K context behind an OpenAI-compatible management-LAN API.
+- Qwen3.6 at 100K context behind an OpenAI-compatible management-LAN API.
 - Moderate/1750 as the unattended production profile.
 - External clients such as Hermes connecting only to node 1.
 
@@ -267,7 +273,7 @@ curl --fail http://<node1-management-ip>:<port>/v1/models
 curl --fail \
   --header 'Content-Type: application/json' \
   --data '{
-    "model": "/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_M.gguf",
+    "model": "/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_L.gguf",
     "messages": [{"role": "user", "content": "Reply with exactly API_READY."}],
     "temperature": 0,
     "max_tokens": 64,
@@ -288,6 +294,7 @@ completion budget.
 - [Current validated state](current-state.md)
 - [Performance tuning](performance-tuning.md)
 - [Hermes model bake-off](hermes-model-bakeoff.md)
+- [Qwen3.6 Q4_K_L promotion](qwen36-q4kl-promotion.md)
 - [Qwen3.6 performance profiles](qwen36-performance-profiles.md)
 - [Acknowledgements](../ACKNOWLEDGEMENTS.md)
 
