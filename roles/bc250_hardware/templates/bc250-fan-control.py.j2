@@ -10,6 +10,8 @@ CHANNEL = {{ bc250_fan_control_channel | int }}
 CURVE = {{ bc250_fan_control_curve | to_json }}
 INTERVAL = {{ bc250_fan_control_interval_seconds | int }}
 TELEMETRY = {{ bc250_fan_control_telemetry_seconds | int }}
+HYSTERESIS = {{ bc250_fan_control_hysteresis_degrees | int }}  # degrees: only change fan once temp crosses this far past a curve point
+
 running = True
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -77,13 +79,58 @@ pwm = device.joinpath(f"pwm{CHANNEL}")
 enable = device.joinpath(f"pwm{CHANNEL}_enable")
 rpm = device.joinpath(f"fan{CHANNEL}_input")
 last_log = 0.0
+
+# Hysteresis state: track last applied percent and the last curve segment index
+last_percent = None
+last_seg_idx = 0  # which segment between curve points we're in (0..len-2)
+last_low_temp = CURVE[0]["temperature"]  # lower bound of current segment
+
 try:
     notify("READY=1")
     while running:
         temp = temperature()
         duty = percent(temp)
-        enable.write_text("1\n")
-        pwm.write_text(f"{round(duty * 255 / 100)}\n")
+
+        # --- hysteresis logic ---
+        # Find which segment the current temperature falls in
+        seg_idx = 0
+        for i in range(len(CURVE) - 1):
+            if CURVE[i]["temperature"] <= temp <= CURVE[i + 1]["temperature"]:
+                seg_idx = i
+                break
+        else:
+            if temp > CURVE[-1]["temperature"]:
+                seg_idx = len(CURVE) - 2
+            else:
+                seg_idx = 0
+
+        low_temp = CURVE[seg_idx]["temperature"]
+        high_temp = CURVE[seg_idx + 1]["temperature"]
+
+        # Determine if we should change fan speed
+        should_change = True
+
+        if last_percent is not None and duty == last_percent:
+            # Same duty — no change needed regardless of hysteresis
+            should_change = False
+        elif last_percent is None:
+            # First run — no prior value to compare against, just apply it
+            should_change = True
+        elif duty > last_percent:
+            # We want to increase fan speed: allow only if temp is at or above high_temp - hysteresis
+            # (i.e., we're close enough to the next curve point)
+            should_change = temp >= (high_temp - HYSTERESIS)
+        elif duty < last_percent:
+            # We want to decrease fan speed: allow only if temp is at or below low_temp + hysteresis
+            should_change = temp <= (low_temp + HYSTERESIS)
+
+        if should_change:
+            enable.write_text("1\n")
+            pwm.write_text(f"{round(duty * 255 / 100)}\n")
+            last_percent = duty
+            last_seg_idx = seg_idx
+            last_low_temp = low_temp
+
         now = time.monotonic()
         if now - last_log >= TELEMETRY:
             fan_rpm = int(rpm.read_text())
