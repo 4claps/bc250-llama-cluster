@@ -3,7 +3,80 @@
 > This characterization was run on the Q4_K_M quant at 65,536 context. Since
 > 2026-09-09 production runs the Q4_K_L quant at 100,000 context; the
 > Moderate/1750 profile conclusion is unchanged. See
-> [the Q4_K_L promotion record](qwen36-q4kl-promotion.md).
+> [the Q4_K_L promotion record](qwen36-q4kl-promotion.md). A 2026-09-16
+> follow-up power-profile bake-off against the Q4_K_L production
+> configuration reconfirmed Moderate; see the section immediately below.
+
+## 2026-09-16 Q4_K_L power-profile bake-off
+
+Re-ran the private Hermes bake-off harness (deterministic throughput check
+plus the 27-trial error-task battery) against the current production model
+and configuration on three GPU power profiles. Same model and same
+llama-server flags throughout — `Qwen3.6-35B-A3B-Q4_K_L`, 100,000 context,
+Q8_0 K/V cache, one slot, all layers offloaded, automatic layer split,
+llama.cpp `d775b8967a46d8beb110d444aa3b8938179e0dd8`, and the production
+`--cache-ram 0 --no-cache-idle-slots` flags; only the CPU/GPU power profile
+changed between the three runs. Telemetry was sampled once per second on
+both nodes for the full duration of each run, covering both the throughput
+check and the battery.
+
+Moderate is unchanged from the earlier Q4_K_M characterization below and
+remains current production; this run also re-baselines it as the new
+performance and thermal/power baseline. It replaces the earlier
+Aggressive/2000 comparison with a new Mild undervolt profile.
+
+### Profiles tested
+
+| Profile | GPU max, MHz | GPU safe points, MHz/mV | CPU target | Throttle limit |
+| --- | ---: | --- | --- | --- |
+| Mild (undervolt) | 1600 | 500/700, 1000/750, 1175/788, 1500/848, 1600/856 | 3500 MHz | 80°C |
+| Moderate (production baseline) | 1750 | 500/700, 1000/800, 1175/850, 1500/900, 1600/910, 1700/920, 1750/925 | 3500 MHz | 80°C |
+| Strong | 1850 | 500/700, 1000/800, 1175/850, 1500/900, 1600/910, 1700/920, 1850/930 | 3500 MHz | 80°C |
+
+Moderate and Strong use the same upstream safe-point curves as the Q4_K_M
+characterization below; Mild is a new undervolt curve, capped at 1600 MHz,
+with reduced voltage at every safe point from 1000 MHz up.
+
+### Results
+
+| Metric | Mild (undervolt) | Moderate (baseline) | Strong |
+| --- | ---: | ---: | ---: |
+| Bowie avg/peak CPU °C | 61.3 / 64.1 | 67.9 / 72.0 | 69.4 / 74.4 |
+| Bowie avg/peak GPU °C | 58.2 / 65.0 | 63.9 / 73.0 | 65.2 / 75.0 |
+| Bowie avg/peak PPT W | 76.9 / 119.6 | 90.6 / 144.4 | 94.3 / 152.6 |
+| Crockett avg/peak CPU °C | 59.7 / 62.6 | 64.1 / 68.0 | 65.5 / 70.0 |
+| Crockett avg/peak GPU °C | 56.5 / 63.0 | 60.2 / 69.0 | 61.4 / 72.0 |
+| Crockett avg/peak PPT W | 75.0 / 120.8 | 87.0 / 145.1 | 91.2 / 151.1 |
+| Prompt tok/s (mean) | 427.3 | 458.2 | 477.7 |
+| Generation tok/s (mean) | 53.7 | 56.2 | 57.7 |
+| TTFT (mean, s) | 44.5 | 41.5 | 39.8 |
+| Battery mean wall (27 trials, s) | 113.4 | 97.4 | 105.3 |
+| Battery timeouts | 0 | 0 | 1 |
+
+Battery timeouts counts `MODEL_TIMEOUT` outcomes in the 27-trial runtime
+battery. It is a latency/runtime metric, not a task-accuracy result.
+
+### Verdict
+
+Moderate remains the production profile. Mild trades ~15% lower
+power/thermals for meaningfully worse latency (~16% slower wall time per
+trial, worse TTFT) — a reasonable option if latency isn't user-facing, but
+not a clear win. Strong isn't worth pursuing: higher temps for a real but
+modest throughput gain, plus the only timeout of the three runs.
+
+### Raw artifacts
+
+Full raw output (throughput check, 27-trial battery logs, per-node
+thermal/power telemetry) is retained on the Ansible controller under the
+gitignored benchmarks tree at:
+
+```
+benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_q4kl_moderate_thermal_baseline/
+benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_q4kl_mild_undervolt/
+benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_q4kl_strong/
+```
+
+## Q4_K_M characterization (2026-08-24)
 
 Tested 2026-08-24 on the two-node Fedora 44 cluster. This characterization
 compares the standard Moderate, Strong, and Aggressive profiles from the

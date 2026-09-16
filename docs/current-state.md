@@ -68,6 +68,16 @@ but Moderate remains the recommended 24/7 setting because it has the best
 generation efficiency and no meaningful real-Hermes disadvantage. See
 [Qwen3.6 performance profiles](qwen36-performance-profiles.md).
 
+A 2026-09-16 follow-up bake-off re-tested Moderate against Strong/1850 and a
+new Mild undervolt profile (GPU capped at 1600 MHz), this time on the
+production Q4_K_L model and configuration with the full 27-trial Hermes
+battery plus telemetry. Moderate remains the production profile: Mild trades
+lower power and thermals for meaningfully worse latency, and Strong's modest
+throughput gain came with higher temperatures and the only timeout of the
+three runs. See the 2026-09-16 section of
+[Qwen3.6 performance profiles](qwen36-performance-profiles.md) for the full
+results.
+
 The baseline retains the stock Fedora kernel and Mesa/RADV. Apart from the
 documented TTM command-line limits, it has no UMA modification, CPU core unlock,
 GFX1013 compute-queue patch, or other custom kernel/amdgpu change.
