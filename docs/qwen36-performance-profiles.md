@@ -64,18 +64,6 @@ trial, worse TTFT) — a reasonable option if latency isn't user-facing, but
 not a clear win. Strong isn't worth pursuing: higher temps for a real but
 modest throughput gain, plus the only timeout of the three runs.
 
-### Raw artifacts
-
-Full raw output (throughput check, 27-trial battery logs, per-node
-thermal/power telemetry) is retained on the Ansible controller under the
-gitignored benchmarks tree at:
-
-```
-benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_q4kl_moderate_thermal_baseline/
-benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_q4kl_mild_undervolt/
-benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_q4kl_strong/
-```
-
 ## Q4_K_M characterization (2026-08-24)
 
 Tested 2026-08-24 on the two-node Fedora 44 cluster. This characterization

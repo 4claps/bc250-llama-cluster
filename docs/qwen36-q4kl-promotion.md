@@ -65,16 +65,3 @@ This was reproduced at both the original 300-second task timeout and a
 500-second rerun (158-second runtime, so not a timeout). It is a tool and
 search-coverage gap that is independent of the quantization change and was
 present on Q4_K_M. The single failure in the 26/27 Q4_K_L battery is this task.
-
-## Raw artifacts
-
-Full raw output (`performance.json`, `report.txt`, `hermes-eval.log`,
-`driver.log`, per-trial ATOF traces, the 500-second rerun report) is retained
-on the Ansible controller under the gitignored benchmarks tree at:
-
-```
-benchmarks/private/hermes-bakeoff-2026-08-23/runs/qwen36_35b_a3b_q4_k_l/
-```
-
-with per-trial scored data under
-`benchmarks/private/hermes-bakeoff-2026-08-23/evals/workspace/results/qwen3.6-q4kl/fixes/`.
