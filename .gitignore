@@ -31,7 +31,6 @@ id_ed25519*
 artifacts/
 build/
 dist/
-benchmarks/private/
 benchmarks/scratch/
 *.gguf
 *.safetensors

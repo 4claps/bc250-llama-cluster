@@ -13,6 +13,12 @@
 > passes) is **not recommended** for production. Production is unchanged. See
 > [the UD-Q3_K_XL candidate](#qwen38-27b-ud-q3_k_xl-candidate-2026-09-18).
 
+> **2026-09-19 update:** a standalone bake-off of two Gemma 4 models
+> (`gemma-4-26B-A4B` MoE and `gemma-4-31B` dense, both Q4_K_M), with a
+> same-conditions re-run of `gpt-oss-20b` as a control, found neither Gemma
+> model competitive with production. Both are **not recommended**. Production
+> is unchanged. See [the Gemma 4 bake-off](#gemma-4-bake-off-2026-09-19).
+
 ## Final production bake-off update
 
 The later production bake-off and subsequent UD-Q4_K_XL follow-up supersede
@@ -36,7 +42,15 @@ baseline.
    19 tok/s generation, `err_big_file_read` timed out on all six trials across
    both profiles, and Bowie ran past its 80°C limits. See
    [the candidate section](#qwen38-27b-ud-q3_k_xl-candidate-2026-09-18).
-7. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
+7. **Gemma 4 26B-A4B Q4_K_M** — not recommended after a standalone test on
+   2026-09-19 (115,000 context, no speculative decoding): 22/27 with no
+   timeouts and about 39 tok/s generation, but slower than production and than
+   `gpt-oss-20b` at equal or lower accuracy. See
+   [the Gemma 4 bake-off](#gemma-4-bake-off-2026-09-19).
+8. **Gemma 4 31B Q4_K_M** — not recommended: it ran out of memory at 115,000
+   context (tested at 65,536), generated about 12 tok/s, averaged 306 s per
+   trial, and pushed Bowie past its 80°C limits.
+9. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
    the 180-second timeout.
 
 The production selection is **Qwen3.6-35B-A3B** with Q8_0 K/V, one slot, all
@@ -274,9 +288,7 @@ Comparability caveats: this run used a 600-second timeout with early-stop
 disabled while the other bake-offs used 180 or 300 seconds with early stop, so
 pass rates are not directly comparable; generation and TTFT were measured per
 request during the agent battery rather than with the standardized probe; and
-each task has only three repetitions. Raw logs (including the `-lv 4` startup
-logs), telemetry CSVs, and driver scripts are retained under the gitignored
-`benchmarks/private/qwen38-q3kxl-candidate-2026-09-18/`.
+each task has only three repetitions.
 
 #### One-shot creative generation: driving game (2026-09-18)
 
@@ -289,6 +301,208 @@ model, judged from screenshots and scripted play. For latency-sensitive serving
 the answer stays no, while offline or batch use could differ. The full write-up,
 the exact prompt, and both generated games are in
 [One-shot creative generation: driving game](creative-generation-driving-game.md).
+
+### Gemma 4 bake-off (2026-09-19)
+
+This was a standalone candidate test, not a production swap. It ran unattended
+overnight: for each model, production `llama-server` was stopped on Bowie, the
+candidate was loaded on a separate port against Crockett's existing RPC worker,
+the full battery ran, and the candidate and its GGUF were removed before the
+next one. Production `Qwen3.6-35B-A3B-Q4_K_L` and the Moderate profile were
+restored and verified afterwards. No Ansible, inventory, or persistent
+configuration was changed.
+
+The plan was five models. Two Gemma 4 models completed and are the subject of
+this section. `gpt-oss-20b` was already covered by the original bake-off, so its
+overnight run is included only as a same-conditions control. Granite 4.2 30B did
+not complete (see [Not tested](#not-tested-and-why)) and Gemma 3 27B was not
+run; neither was pursued afterwards.
+
+| Model | Hugging Face repository and file | Size (bytes) | Type |
+| --- | --- | ---: | --- |
+| Gemma 4 26B-A4B | `bartowski/google_gemma-4-26B-A4B-it-GGUF`, `google_gemma-4-26B-A4B-it-Q4_K_M.gguf` | 17,035,039,872 | MoE, 26B total / 4B active |
+| Gemma 4 31B | `bartowski/google_gemma-4-31B-it-GGUF`, `google_gemma-4-31B-it-Q4_K_M.gguf` | 19,598,489,952 | Dense |
+| `gpt-oss-20b` (control) | `ggml-org/gpt-oss-20b-GGUF`, `gpt-oss-20b-MXFP4.gguf` | 12,109,566,624 | MoE, native MXFP4 |
+
+Each download's size matched the Hugging Face file listing to the byte and its
+GGUF header was checked; SHA-256 was not recorded. Only standard Q4_K_M (or
+native MXFP4) quants from established quantizers were used, with no custom
+KV-cache schemes.
+
+#### Protocol
+
+All models ran on the same pinned llama.cpp revision as the Qwen3.8 test, with
+the production-equivalent flags and the Moderate/1750 profile confirmed on both
+nodes before each load. No speculative decoding was enabled for any of them, so
+the comparison is like for like:
+
+```text
+--rpc 10.250.0.2:50052 --gpu-layers all --split-mode layer
+--ctx-size 115000 --parallel 1 --cache-type-k q8_0 --cache-type-v q8_0 --jinja
+--cache-ram 0 --no-cache-idle-slots
+```
+
+`--cache-ram 0 --no-cache-idle-slots` were included from the start, and no
+coordinator OOM kills occurred during a battery. Neither Gemma startup log
+listed unused `nextn` tensors, so neither model has an MTP block to enable.
+
+Each ran the full 27-trial error-task battery (nine tasks, three repetitions)
+with a 600-second per-trial timeout and the harness early-stop rule disabled, as
+in the Qwen3.8 test, so a timeout was recorded as a failed trial and the battery
+continued.
+
+**Gemma 4 31B did not fit at 115,000 context.** The load was killed by the
+kernel OOM killer on Bowie while amdgpu logged "Not enough memory for command
+submission". The single permitted retry at 65,536 context loaded and ran the
+whole battery, so every 31B figure below is at 65,536 context, not the 115,000
+that production uses. The 26B-A4B and the control loaded at the full 115,000
+(slot `n_ctx` 115,200).
+
+#### Results
+
+| Metric | Production Q4_K_L (reference) | Gemma 4 26B-A4B | Gemma 4 31B | `gpt-oss-20b` (control) |
+| --- | ---: | ---: | ---: | ---: |
+| GGUF size | 22.66 GB | 17.04 GB | 19.60 GB | 12.11 GB |
+| Context | 115,000 | 115,000 | 65,536 | 115,000 |
+| Battery pass rate | 26/27 at promotion | 22/27 (81%) | 22/27 (81%) | 23/27 (85%) |
+| Trials that hit the 600 s timeout | n/a | 0 | 1 | 0 |
+| Generation, tok/s | 56.2 (standardized probe) | 39.1 | 12.2 | 65.4 |
+| Prompt processing, tok/s | 458.2 (standardized probe) | 476.6 | 118.2 | 414.7 |
+| TTFT proxy, mean / median | 41.5 s (standardized probe) | 17.9 / 3.9 s | 58.6 / 13.0 s | 15.8 / 1.2 s |
+| Battery mean trial wall | 97.4 s | 137 s | 306 s | 92 s |
+| Battery total wall | n/a | 65 min | 146 min | 43 min |
+| Bowie CPU °C avg/peak | 67.9 / 72.0 | 69.9 / 77.6 | 76.8 / 85.0 | 71.5 / 77.0 |
+| Bowie GPU °C avg/peak | 63.9 / 73.0 | 65.4 / 78.0 | 72.9 / 86.0 | 67.4 / 78.0 |
+| Bowie PPT W avg/peak | 90.6 / 144.4 | 89.9 / 139.6 | 102.5 / 144.8 | 93.5 / 129.7 |
+| Crockett CPU °C avg/peak | 64.1 / 68.0 | 64.0 / 69.1 | 68.4 / 74.1 | 66.8 / 71.0 |
+| Crockett GPU °C avg/peak | 60.2 / 69.0 | 60.3 / 70.0 | 65.1 / 75.0 | 63.4 / 72.0 |
+| Crockett PPT W avg/peak | 87.0 / 145.1 | 86.5 / 135.6 | 103.3 / 145.3 | 94.9 / 127.2 |
+| Free Vulkan after load, Bowie / Crockett | about 3.3 GiB combined | 4.23 / 3.94 GiB | 0.86 / 2.47 GiB | 6.54 / 6.59 GiB |
+
+Generation and prompt rates are token-weighted over every request in the
+battery (per-request means were 38.6, 12.4, and 64.6 tok/s). The TTFT proxy is
+server-side prompt-evaluation time plus the first generated token, per request;
+the means are pulled up by a few cold ~19K-token prefills, which is why the
+medians are so much lower. The candidate columns were therefore not measured the
+same way as the standardized 18,982-token probe behind the production
+reference, and the two should not be compared as exact figures. Production's
+reference figures come from [the performance-profile bake-off](qwen36-performance-profiles.md)
+(Moderate profile) and [the Q4_K_L promotion record](qwen36-q4kl-promotion.md);
+its pass rate is the promotion-time result under the earlier timeout policy.
+Free Vulkan is the GTT heap (12.83 GiB per node) sampled right after load,
+before any request; the 31B's figure is at the smaller 65,536 context.
+
+#### Per-task results
+
+| Task | Gemma 4 26B-A4B | Gemma 4 31B | `gpt-oss-20b` (control) |
+| --- | ---: | ---: | ---: |
+| `err_python_env` | 100% (144 s) | 100% (230 s) | 100% (59 s) |
+| `err_replay_patch` | 100% (124 s) | 100% (254 s) | 100% (45 s) |
+| `err_ambiguous_edit` | 100% (160 s) | 100% (287 s) | 100% (59 s) |
+| `err_case_search` | 100% (93 s) | 100% (237 s) | 100% (44 s) |
+| `err_hidden_search` | 0% (65 s) | 0% (211 s) | 0% (43 s) |
+| `err_big_output` | 100% (82 s) | 100% (261 s) | 100% (93 s) |
+| `err_multi_dir` | 33% (126 s) | 100% (486 s) | 100% (50 s) |
+| `err_inline_script` | 100% (116 s) | 100% (216 s) | 100% (43 s) |
+| `err_big_file_read` | 100% (327 s) | 33% (572 s) | 67% (391 s) |
+
+Cells are ok% with the mean wall time per trial in parentheses.
+
+`err_hidden_search` scored 0/3 on all three models, including the control, and
+was the only task with no 3/3 anywhere. It is the task Qwen3.6 Q4_K_L's single
+failure fell on at promotion, while Qwen3.8-27B UD-Q3_K_XL passed it 3/3 on both
+profiles, so it is not uniformly hard; why these three models miss it was not
+investigated. The other misses are isolated: `err_multi_dir` for the 26B-A4B,
+and `err_big_file_read` for the 31B (its one timeout was
+`err_big_file_read` repetition 0, and its mean of 572 s shows the other trials
+ran close to the limit) and the control. At three repetitions per task, one or
+two trials is inside the noise, so 22/27 versus 23/27 is not a ranking between
+these models.
+
+The 3-trial no-tool arithmetic eval scored 0/3 for all three models under the
+exact-match grader. In all nine trials the final answer was `RESULT=323`, but
+reasoning text or a scanner warning line was captured before it, so the strict
+match failed. As with Qwen3.8, that is output-format leakage, not an arithmetic
+error.
+
+#### Thermals and memory
+
+The dense 31B was the hardest run on the hardware: Bowie peaked at 85.0°C CPU and
+86.0°C GPU, past the 80°C limits configured for both, with about 102 W average
+PPT sustained across a 146-minute battery, and it left only 0.86 GiB free
+Vulkan memory on Bowie even at the reduced context. The 26B-A4B stayed under 80°C
+(77.6°C CPU, 78.0°C GPU) but still ran about 5°C hotter than production's
+72.0 / 73.0°C on the same profile. Crockett stayed at or below 75°C throughout,
+and Bowie ran hotter than Crockett for every model, consistent with the
+structural split asymmetry described in
+[the Qwen3.8 thermal analysis](#thermals-and-the-bowiecrockett-asymmetry). As
+before, the telemetry recorded temperatures and PPT but not GPU clocks, so any
+throttling effect on throughput was not observed.
+
+#### Not tested and why
+
+- **Granite 4.2 30B Q4_K_M:** Crockett froze hard about 90 seconds into the
+  115,000-context load, during the RPC tensor upload. Nothing was logged before
+  the freeze (no OOM, kernel panic, or amdgpu error); the last kernel message was
+  a clocksource watchdog timeout. The node stayed unreachable until it was
+  cold-restarted almost six hours later. The cause was not verified,
+  and the test was not retried, so there is no Granite result.
+- **Gemma 3 27B Q4_K_M:** not run; the harness skipped it while Crockett was
+  down, and it was not pursued afterwards.
+
+#### Comparison and verdict
+
+**Neither Gemma 4 model is recommended for production.** Both scored 22/27,
+below Qwen3.6 Q4_K_L's 26/27 at promotion (under a different timeout policy, so
+not an exact comparison), and neither beats `gpt-oss-20b`, which ran under the
+same conditions here and remains the fast/light alternative: it was faster
+(65.4 against 39.1 tok/s), quicker per trial (92 against 137 s), and scored
+23/27.
+
+- **26B-A4B** is the more interesting of the two. It is a MoE like production,
+  completed with no timeouts at the full 115,000 context, and stayed under the
+  80°C limits, but at 39.1 tok/s it generates well below production's standardized
+  56.2 tok/s and 137 s per trial is about 40% longer than production's 97.4 s.
+  It does not displace production or `gpt-oss-20b`.
+- **31B** is not viable on this hardware: it could not hold 115,000 context, it
+  generated about 12 tok/s, a single trial averaged 306 s, and it ran Bowie past
+  its thermal limits with almost no memory headroom.
+
+The two Gemma 4 models tied on accuracy, but the dense 31B was about 3.2 times
+slower in generation (12.2 against 39.1 tok/s) and 2.2 times slower per trial
+than the 4B-active MoE. That points the same way as Qwen3.8-27B, a dense model, against the A3B production
+model on this hardware, but each pair differs in more than parameter count, so it is
+suggestive rather than isolated experimentally. Production stays on Qwen3.6-35B-A3B
+Q4_K_L with the Moderate profile.
+
+Comparability caveats: this used a 600-second timeout with early stop disabled
+while earlier bake-offs used 180 or 300 seconds with early stop, so pass rates
+are not directly comparable; generation and TTFT were measured per request during
+the agent battery rather than with the standardized probe; the 31B ran at a
+smaller context than the other models; and each task has only three repetitions
+of one run per model. The `gpt-oss-20b` control scored 23/27 here against 21/27
+in the original bake-off; that difference reflects a different timeout policy,
+context size, and date, and the original figure remains its official entry.
+
+#### Operational notes
+
+- **Stop production before downloading on Bowie.** With production resident the
+  node has about 0.3 GB of free RAM, and the kernel OOM-killed the Hugging Face
+  downloader twice. Stopping production first and using the classic HTTP
+  download path (`HF_HUB_DISABLE_XET=1`) avoided it.
+- **Crockett's RPC cache grows with every model tried.** The worker runs with
+  `--cache`, and each candidate adds several GB of tensor files to Crockett's
+  disk; the cache had reached 156 GB of its 236 GB before the daily cleanup timer
+  removed the files older than one day. Files created by each test were removed
+  afterwards by modification time.
+- **After a cold restart Crockett's GPU enumerated as `card1`, not `card0`.** Any
+  check that reads `/sys/class/drm/card0/...` (for example to confirm the sclk
+  profile) fails there until it uses a glob.
+- **Production was stopped for about ten and a half hours**, roughly six of
+  them waiting for Crockett to recover, and was then restored and
+  verified: `llama-server` active on 8080, `/v1/models` returning 200 at
+  n_ctx 115,200, a live completion succeeding, and Moderate confirmed on both
+  nodes.
 
 The sections below preserve the earlier Qwen3-Coder/Hermes-4 fit campaign and
 post-cooling history. They are historical evidence, not the current model

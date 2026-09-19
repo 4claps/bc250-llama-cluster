@@ -3,7 +3,6 @@ extends: default
 
 ignore: |
   .ansible/
-  benchmarks/private/
   inventories/production/
 
 rules:

@@ -60,7 +60,7 @@ Test a small model, a model near one node's practical memory limit, a model that
 needs combined memory, and a long-context workload. Record cold/warm load time,
 prompt-processing tokens/s, generation tokens/s, time to first token, request
 latency, backend throughput, memory, clocks, temperatures, throttling, and GPU
-faults. Preserve raw private results under the gitignored `benchmarks/private/`.
+faults.
 
 The completed [Ministral 3 8B single-node versus RPC comparison](ministral-single-vs-rpc.md)
 is the small dense-model case. On the tested 2.5 GbE layer split, RPC improved

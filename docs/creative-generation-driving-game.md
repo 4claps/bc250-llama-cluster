@@ -75,8 +75,7 @@ of them reasoning and 14K HTML, estimated from the character ratio.
 For any latency- or budget-constrained use this matters: with default thinking, a
 cap below roughly 49K tokens returns an empty answer, not a partial one, and at
 15–17 tok/s a 110,000-token ceiling can run close to two hours. Thinking-disabled
-operation was not tested. The empty output file was kept as a record in the
-private results directory.
+operation was not tested.
 
 ## Validation
 

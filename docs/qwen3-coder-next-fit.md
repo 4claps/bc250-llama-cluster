@@ -98,6 +98,5 @@ For the largest candidate that qualifies:
    smaller quant solely because it loads more easily.
 7. Attempt 16K only after the chosen 8K configuration passes sustained tests.
 
-Record measurements under the gitignored `benchmarks/private/`. Promote a model
-to inventory only after this qualification is complete; this plan does not
-enable `llama_manage_model_download` or set `llama_model_filename`.
+Promote a model to inventory only after this qualification is complete; this
+plan does not enable `llama_manage_model_download` or set `llama_model_filename`.
