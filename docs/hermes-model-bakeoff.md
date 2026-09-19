@@ -2,11 +2,16 @@
 
 > **2026-09-09 update:** the winning model, `Qwen3.6-35B-A3B`, was promoted in
 > place from the Q4_K_M quant to Q4_K_L (Q8_0 embedding and output weights) and
-> the context size was raised to 100,000. A post-swap bake-off showed
+> the context size was raised to 100,000 (later 115,000). A post-swap bake-off showed
 > generation, time to first token, and error-task pass rate all at parity with
 > Q4_K_M, so the model choice below is unchanged; only the quant and context
 > differ. See [the Q4_K_L promotion record](qwen36-q4kl-promotion.md). The
 > figures in this document are the original Q4_K_M bake-off.
+
+> **2026-09-18 update:** a standalone candidate test of
+> `Qwen3.8-27B-UD-Q3_K_XL` with MTP speculative decoding (two full 27-trial
+> passes) is **not recommended** for production. Production is unchanged. See
+> [the UD-Q3_K_XL candidate](#qwen38-27b-ud-q3_k_xl-candidate-2026-09-18).
 
 ## Final production bake-off update
 
@@ -26,13 +31,19 @@ baseline.
    early-stop rule.
 5. **Qwen3.8-27B Q4_K_M** — not recommended because of excessive and highly
    variable agent latency.
-6. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
+6. **Qwen3.8-27B UD-Q3_K_XL** — not recommended after a standalone candidate
+   test on 2026-09-18 (115,000 context, MTP speculative decoding): about
+   19 tok/s generation, `err_big_file_read` timed out on all six trials across
+   both profiles, and Bowie ran past its 80°C limits. See
+   [the candidate section](#qwen38-27b-ud-q3_k_xl-candidate-2026-09-18).
+7. **GLM-4.7-Flash Q4_K** — not recommended after both opening tasks reached
    the 180-second timeout.
 
 The production selection is **Qwen3.6-35B-A3B** with Q8_0 K/V, one slot, all
 layers offloaded, and automatic layer split. It was qualified here on the
-Q4_K_M quant at 65,536 context; since 2026-09-09 it runs as the Q4_K_L quant at
-100,000 context (see [the Q4_K_L promotion record](qwen36-q4kl-promotion.md)).
+Q4_K_M quant at 65,536 context; since 2026-09-09 it runs as the Q4_K_L quant,
+at 100,000 context initially and 115,000 now (see
+[the Q4_K_L promotion record](qwen36-q4kl-promotion.md)).
 The cross-request host-RAM prompt cache is disabled with
 `--cache-ram 0 --no-cache-idle-slots`; these flags do not disable the normal KV
 cache. During the bake-off, retained unrelated large prompts caused the
@@ -84,6 +95,200 @@ page fault, Vulkan error, or RPC failure occurred.
 Q4_K_M, `gpt-oss-20b`, or the retained Qwen3-Coder control. It consumes more
 memory, generates more slowly, and was materially less useful in the Hermes
 tasks. Q4_K_M remains the production model.
+
+### Qwen3.8-27B UD-Q3_K_XL candidate (2026-09-18)
+
+This was a standalone candidate test, not a production swap. Production
+`llama-server` was stopped on Bowie, the candidate was loaded on a separate port
+against Crockett's existing RPC worker, and production
+`Qwen3.6-35B-A3B-Q4_K_L` and the Moderate profile were restored and verified
+afterwards. No Ansible, inventory, or persistent configuration was changed.
+
+The artifact was `Qwen3.8-27B-UD-Q3_K_XL.gguf` (13,146,393,504 bytes, 27.3 B
+parameters; SHA-256 was not recorded). It ran on the same pinned llama.cpp
+revision `d775b8967a46d8beb110d444aa3b8938179e0dd8` with 115,000 context (slot
+`n_ctx` 115,200), Q8_0 K/V cache, one slot, all 66 layers offloaded (64
+repeating layers, the output layer, and the MTP block), and automatic layer
+split:
+
+```text
+--rpc 10.250.0.2:50052 --gpu-layers all --split-mode layer
+--ctx-size 115000 --parallel 1 --cache-type-k q8_0 --cache-type-v q8_0 --jinja
+--cache-ram 0 --no-cache-idle-slots
+--spec-type draft-mtp --spec-draft-n-max 3 --no-spec-draft-backend-sampling
+```
+
+These are the flags the live production unit used at the time of the test. The
+startup log listed unused `blk.64.nextn.eh_proj`, `enorm`, and `hnorm` tensors,
+the same signal that revealed MTP support in Qwen3.6, so MTP speculative
+decoding was enabled. Mean draft acceptance was 0.75 (Moderate) and 0.72
+(Strong). The earlier Qwen3.8-27B Q4_K_M GGUF offloaded 65/65 layers and had no
+MTP block.
+
+`--cache-ram 0 --no-cache-idle-slots` were required, not optional. The first
+attempt, launched without them, was OOM-killed by the kernel partway through the
+first pass (host RAM, the same failure mode described above for the original
+bake-off). Its results were discarded and the pass was rerun from scratch with
+the flags; no OOM occurred afterwards.
+
+#### Protocol
+
+Each profile ran the full 27-trial error-task battery (nine tasks, three
+repetitions) with the harness early-stop rule disabled and a 600-second
+per-trial timeout, so a timeout was recorded as a failed trial and the battery
+continued. An earlier attempt with early-stop enabled ended at 18/27 after two
+`err_big_file_read` timeouts and was superseded by the full rerun. The profiles
+are Moderate/1750 and Strong/1850 as defined in
+[the performance-profile characterization](qwen36-performance-profiles.md).
+
+| Metric | Moderate | Strong |
+| --- | ---: | ---: |
+| Pass rate | 81% (22/27) | 89% (24/27) |
+| Trials that hit the 600 s timeout | 5 | 3 |
+| Mean generation, tok/s | 19.08 | 19.47 |
+| Mean TTFT proxy | 43.5 s (median 6.9 s) | 41.4 s (median 6.7 s) |
+| MTP draft acceptance | 0.75 | 0.72 |
+| Battery mean wall / total | 295 s / 133 min | 260 s / 117 min |
+| Bowie CPU °C avg/peak | 76.5 / 82.1 | 80.5 / 86.2 |
+| Bowie GPU °C avg/peak | 71.6 / 83.0 | 75.1 / 88.0 |
+| Bowie PPT W avg/peak | 101.7 / 149.3 | 107.0 / 150.9 |
+| Crockett CPU °C avg/peak | 68.0 / 72.9 | 69.4 / 73.6 |
+| Crockett GPU °C avg/peak | 63.9 / 74.0 | 65.0 / 75.0 |
+| Crockett PPT W avg/peak | 96.9 / 141.3 | 102.8 / 146.1 |
+
+Generation is the mean of per-request server-side rates over requests that
+generated at least 20 tokens (token-weighted: 18.94 and 18.51 tok/s). The TTFT
+proxy is server-side prompt-evaluation time per request; the mean is pulled up
+by a few cold ~19K-token prefills at roughly 140 tok/s, which is why the median
+is about 7 s. Neither is measured the same way as the standardized 18,982-token
+probe used for the Q4_K_L figures below.
+
+#### Per-task results
+
+| Task | Moderate ok% | Strong ok% | Moderate mean wall | Strong mean wall |
+| --- | ---: | ---: | ---: | ---: |
+| `err_python_env` | 100% | 100% | 212 s | 211 s |
+| `err_replay_patch` | 100% | 100% | 199 s | 187 s |
+| `err_ambiguous_edit` | 100% | 100% | 213 s | 215 s |
+| `err_case_search` | 100% | 100% | 240 s | 277 s |
+| `err_hidden_search` | 100% | 100% | 246 s | 207 s |
+| `err_big_output` | 100% | 100% | 228 s | 187 s |
+| `err_multi_dir` | 100% | 100% | 204 s | 202 s |
+| `err_inline_script` | 33% | 100% | 516 s | 250 s |
+| `err_big_file_read` | 0% | 0% | 600 s | 600 s |
+
+Seven of nine tasks passed 3/3 on both profiles. `err_inline_script` scored 33%
+on Moderate and 100% on Strong, but the two Moderate misses were 600-second
+timeouts and Strong had none; at three repetitions that is timeout variance, not
+a profile difference. `err_big_file_read` scored 0/3 on both profiles, and all
+six trials hit the 600-second timeout rather than returning a wrong answer. The
+same task also timed out (at 300 s) on an earlier Qwen3.8-27B UD-Q4_K_XL run, and
+it passes on Qwen3.6 Q4_K_L, whose one failure in its 26/27 battery is
+`err_hidden_search`. It is a reproducible model/task limitation, not a hardware
+one.
+
+The 3-trial no-tool arithmetic eval scored 0/3 on both profiles under the
+exact-match grader. In all six trials the final line was `RESULT=323`, but
+reasoning text preceded it in the captured output, so the strict match failed.
+That is output-format leakage, not an arithmetic error; Q4_K_L scored 3/3.
+
+#### Thermals and the Bowie/Crockett asymmetry
+
+Bowie ran much hotter than it did with Q4_K_L. On Strong its peaks (86.2°C CPU,
+88.0°C GPU) exceeded the 80°C limits configured for both, against 74.4°C and
+75.0°C for Q4_K_L on the same profile in the 2026-09-16 bake-off; on Moderate
+they were 82.1°C and 83.0°C against 72.0°C and 73.0°C. Crockett stayed at
+72.9–75°C. The telemetry recorded temperatures and PPT but not GPU clocks, so
+whether the overshoot reduced clocks, and therefore throughput, was not
+observed.
+
+The cause is structural asymmetry in the llama.cpp RPC split, not a
+load-balancing failure:
+
+- Automatic split and an explicit `--tensor-split 1,1` produced identical
+  startup logs: Crockett (RPC0) 5,266.00 MiB and Bowie (Vulkan0) 6,739.89 MiB of
+  weights (43.9% / 56.1%), a 521 MiB host buffer, identical projected use
+  (7,725 / 9,183 MiB), and identical measured post-load allocation
+  (7.60 / 10.12 GiB). Automatic split divides by free memory, and the two
+  devices reported nearly equal free memory (13,573 / 13,632 MiB), so `1,1`
+  reproduces it. KV buffers were equal at 1,912.5 MiB per device. As in the
+  split experiment above, llama.cpp lists the RPC device first for
+  `--tensor-split`. The per-device lines print only at `-lv 4`; the default
+  verbosity omits them.
+- The remaining 1.44 GiB (1,474 MiB) of weight difference sits on Bowie. The log
+  shows the MTP draft context (450 MiB KV, 184.5 MiB compute) on Vulkan0 only;
+  attributing the rest to the output layer is an inference from llama.cpp
+  placing it on the last device, because the log does not print per-tensor
+  placement.
+- Crockett was not idle. Its PPT averaged 96.9 W (Moderate) and 102.8 W (Strong)
+  against roughly 60 to 65 W idle, comparable to Bowie's 101.7 and 107.0 W.
+- The asymmetry also exists in production Q4_K_L, smaller: live allocation was
+  12.30 GiB on Bowie and 11.03 GiB on Crockett (52.7% / 47.3%), against 57.1% /
+  42.9% for this candidate. No `--tensor-split` is configured anywhere
+  (`llama_tensor_split` is empty and none is in the launch command), so a stale
+  split value is not a factor.
+
+#### Comparison with production Q4_K_L
+
+| Metric | UD-Q3_K_XL (Moderate / Strong) | Q4_K_L (Moderate / Strong) |
+| --- | ---: | ---: |
+| GGUF size | 13.15 GB | 22.66 GB |
+| Battery pass rate | 22/27 / 24/27 (600 s, no early stop) | 26/27 at promotion |
+| Generation, tok/s | 19.1 / 19.5 (agent-trial mean, MTP) | 56.2 / 57.7 (standardized probe) |
+| Battery mean wall | 295 s / 260 s | 97.4 s / 105.3 s |
+| Bowie CPU / GPU peak °C | 82.1 / 83.0 and 86.2 / 88.0 | 72.0 / 73.0 and 74.4 / 75.0 |
+| Crockett CPU / GPU peak °C | 72.9 / 74.0 and 73.6 / 75.0 | 68.0 / 69.0 and 70.0 / 72.0 |
+| Combined free Vulkan after load | about 8.9 GiB | about 3.3 GiB |
+
+Q4_K_L figures come from [the performance-profile bake-off](qwen36-performance-profiles.md)
+and [the Q4_K_L promotion record](qwen36-q4kl-promotion.md); the free-memory
+figures were measured the same way, idle after load, on 2026-09-18.
+
+The Qwen3.8-27B results so far, all on the same hardware:
+
+| Quant | Date | Generation | Hermes battery |
+| --- | --- | --- | --- |
+| Q4_K_M | 2026-08-23 | 14.0 tok/s, TTFT 107 s (standardized probe, 65,536 context, no MTP) | 2/21 (9.5%), early stop for excessive latency |
+| UD-Q4_K_XL | 2026-09-07 | Not measured | Early stop at 13 trials: 11/13 passed, two 300 s timeouts (`err_big_file_read`, `err_case_search`), 222 s mean |
+| UD-Q3_K_XL, MTP | 2026-09-18 | about 19 tok/s (agent-trial mean) | 22/27 and 24/27 at 600 s, no early stop |
+
+The Q4_K_XL row is from a private run that had no tracked write-up; it is not
+the Qwen3.6-35B-A3B UD-Q4_K_XL follow-up above, which is a different model.
+
+**Verdict:** UD-Q3_K_XL loads cleanly at full context and works with MTP, but it
+is **not recommended** for production. The smaller quant does provide far more
+Vulkan headroom (about 8.9 GiB combined free against about 3.3 GiB for Q4_K_L),
+so memory pressure is not what rules it out. Generation is about a third of
+production Q4_K_L's, the battery ran roughly 2.5 to 3 times slower,
+`err_big_file_read` failed on both profiles, and Bowie exceeded its 80°C
+limits. The Qwen3.8-27B family has now shown poor throughput or latency at
+Q4_K_M, UD-Q4_K_XL, and UD-Q3_K_XL, so quant size was not the bottleneck. The
+model is a 27B-parameter model with no active-parameter suffix, unlike the
+A3B-designated production model, which likely explains the gap, but that was not
+isolated experimentally. This is a third data point for the family, not a new
+avenue to explore: further Qwen3.8-27B quants are not worth testing for Hermes
+on this hardware. Production stays on Qwen3.6-35B-A3B Q4_K_L with the Moderate
+profile.
+
+Comparability caveats: this run used a 600-second timeout with early-stop
+disabled while the other bake-offs used 180 or 300 seconds with early stop, so
+pass rates are not directly comparable; generation and TTFT were measured per
+request during the agent battery rather than with the standardized probe; and
+each task has only three repetitions. Raw logs (including the `-lv 4` startup
+logs), telemetry CSVs, and driver scripts are retained under the gitignored
+`benchmarks/private/qwen38-q3kxl-candidate-2026-09-18/`.
+
+#### One-shot creative generation: driving game (2026-09-18)
+
+A separate, qualitative test asked both models for the same single-file 2D
+driving game. Production produced one in 102.8 s (7,895 tokens, 77.9 tok/s). The
+candidate needed 48,930 tokens and 53 minutes (15.4 tok/s), and at a 24,000-token
+cap it returned an empty file because it spent the whole budget on reasoning.
+Its game was richer, at roughly 31 times the wall time; that is one sample per
+model, judged from screenshots and scripted play. For latency-sensitive serving
+the answer stays no, while offline or batch use could differ. The full write-up,
+the exact prompt, and both generated games are in
+[One-shot creative generation: driving game](creative-generation-driving-game.md).
 
 The sections below preserve the earlier Qwen3-Coder/Hermes-4 fit campaign and
 post-cooling history. They are historical evidence, not the current model

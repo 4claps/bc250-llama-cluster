@@ -1,7 +1,8 @@
 # Qwen3.6 BC250 performance-profile characterization
 
 > This characterization was run on the Q4_K_M quant at 65,536 context. Since
-> 2026-09-09 production runs the Q4_K_L quant at 100,000 context; the
+> 2026-09-09 production runs the Q4_K_L quant (100,000 context at promotion,
+> 115,000 now); the
 > Moderate/1750 profile conclusion is unchanged. See
 > [the Q4_K_L promotion record](qwen36-q4kl-promotion.md). A 2026-09-16
 > follow-up power-profile bake-off against the Q4_K_L production
@@ -12,7 +13,9 @@
 Re-ran the private Hermes bake-off harness (deterministic throughput check
 plus the 27-trial error-task battery) against the current production model
 and configuration on three GPU power profiles. Same model and same
-llama-server flags throughout — `Qwen3.6-35B-A3B-Q4_K_L`, 100,000 context,
+llama-server flags throughout — `Qwen3.6-35B-A3B-Q4_K_L`, 115,000 context
+(`n_ctx` 115200 in the production service's journal for this period; an earlier
+revision of this section said 100,000),
 Q8_0 K/V cache, one slot, all layers offloaded, automatic layer split,
 llama.cpp `d775b8967a46d8beb110d444aa3b8938179e0dd8`, and the production
 `--cache-ram 0 --no-cache-idle-slots` flags; only the CPU/GPU power profile

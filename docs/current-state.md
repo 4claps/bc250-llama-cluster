@@ -99,14 +99,19 @@ The production model is intentionally not tracked by Git:
 - SHA-256: `49418000a889fef4b4353f36f598ad5a668c6ae374ac791bf923f76395a1bceb`.
 - GGUF size: 22,662,526,592 bytes. Q4_K_L keeps the embedding and output
   weights at Q8_0 and Q4_K elsewhere.
-- Context: 100,000 tokens (`llama-server` allocates the slot as `n_ctx`
-  100096), raised from 65,536 in the same change window.
+- Context: 115,000 tokens (`llama-server` allocates the slot as `n_ctx`
+  115200). It was raised from 65,536 to 100,000 in the 2026-09-09 promotion
+  window and to 115,000 afterwards; the journal shows `n_ctx_slot = 115200` on
+  every service start since at least 2026-09-15.
 - KV cache: Q8_0 K and Q8_0 V, one slot.
 - Offload: all layers, automatic `layer` split over Bowie local Vulkan and
   Crockett RPC Vulkan.
 - Prompt-cache safety: `--cache-ram 0 --no-cache-idle-slots` disables the
   cross-request host-RAM prompt cache that caused an OOM during the bake-off;
   it does not disable the normal Q8_0 K/V cache.
+- Speculative decoding: MTP (`--spec-type draft-mtp --spec-draft-n-max 3
+  --no-spec-draft-backend-sampling`), configured through the `llama_spec_*`
+  variables. Qwen3.6 carries `blk.N.nextn.*` tensors.
 
 The completed Hermes bake-off selected Qwen3.6 as the best overall backend.
 `gpt-oss-20b` MXFP4 remains the useful fast/light alternative. The earlier
@@ -125,6 +130,13 @@ A post-swap bake-off showed generation, time to first token, and error-task
 pass rate all at parity with Q4_K_M, so this was an in-place quality upgrade
 rather than a re-evaluation of the model choice. Details and raw-artifact
 locations are in [the Q4_K_L promotion record](qwen36-q4kl-promotion.md).
+
+On 2026-09-18 a standalone `Qwen3.8-27B-UD-Q3_K_XL` candidate (MTP speculative
+decoding, 115,000 context, two full 27-trial passes) was tested and not
+recommended; production was not changed. It generated about 19 tok/s, roughly a
+third of production, `err_big_file_read` timed out on both power profiles, and
+Bowie ran past its 80°C limits, despite far more Vulkan headroom. See the
+[Hermes model bake-off](hermes-model-bakeoff.md#qwen38-27b-ud-q3_k_xl-candidate-2026-09-18).
 
 The original 64K Qwen3-Coder-30B run was functionally successful, but Crockett
 reached approximately 90°C and throttled while Bowie peaked at 67°C. After

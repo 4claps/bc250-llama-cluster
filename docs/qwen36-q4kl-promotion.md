@@ -3,7 +3,9 @@
 Completed 2026-09-09. The production Hermes backend model was promoted from
 `Qwen3.6-35B-A3B-Q4_K_M` to `Qwen3.6-35B-A3B-Q4_K_L`. In the same change
 window the llama-server context size was raised from 65,536 to 100,000
-(`llama-server` rounds the slot allocation up to `n_ctx` 100096).
+(`llama-server` rounds the slot allocation up to `n_ctx` 100096). The context
+size was raised again to 115,000 (`n_ctx` 115200) after this record; the figures
+below describe the 100,000-token state at promotion.
 
 This is a straight quant swap on the same `ggml-org/Qwen3.6-35B-A3B-GGUF`
 family, the same pinned llama.cpp revision

@@ -148,13 +148,13 @@ not enabled when fan telemetry/control is unqualified or bypassed.
 | llama.cpp | `d775b8967a46d8beb110d444aa3b8938179e0dd8` |
 | Production profile | Moderate: CPU 3500 MHz, GPU 1750 MHz, 80°C limit |
 | Production model | Qwen3.6-35B-A3B Q4_K_L (promoted from Q4_K_M 2026-09-09) |
-| Context and KV | 100,000 tokens, Q8_0 K/V, one slot |
+| Context and KV | 115,000 tokens, Q8_0 K/V, one slot |
 | Split | All layers offloaded, automatic layer split |
 
 Production llama-server arguments:
 
 ```text
---ctx-size 100000
+--ctx-size 115000
 --cache-type-k q8_0
 --cache-type-v q8_0
 --parallel 1
@@ -164,6 +164,9 @@ Production llama-server arguments:
 --jinja
 --cache-ram 0
 --no-cache-idle-slots
+--spec-type draft-mtp
+--spec-draft-n-max 3
+--no-spec-draft-backend-sampling
 ```
 
 `--cache-ram 0` and `--no-cache-idle-slots` prevent llama.cpp's cross-request
@@ -184,7 +187,8 @@ not inability to fit.
 | 3 | Qwen3-Coder-30B-A3B Q4_K_M | 19/27 (70.4%) | 9/9 | — | 25 | — | Capable control; weaker practical Hermes result |
 | 4 | Qwen3.6-35B-A3B UD-Q4_K_XL | 5/9 (55.6%), early stop | Not reached | 143.6 s | 0 | 50.45 tok/s | Stable, but tight memory and excessive agent latency |
 | 5 | Qwen3.8-27B Q4_K_M | 2/21 (9.5%) | — | Excessive | — | — | Not recommended |
-| 6 | GLM-4.7-Flash Q4_K | Opening two tasks timed out | — | — | — | — | Not recommended |
+| 6 | Qwen3.8-27B UD-Q3_K_XL (MTP, 115K context, 2026-09-18) | 22/27 (81%) Moderate, 24/27 (89%) Strong | 8/9 | 295 s / 260 s | — | ~19 tok/s | Not recommended |
+| 7 | GLM-4.7-Flash Q4_K | Opening two tasks timed out | — | — | — | — | Not recommended |
 
 Qwen3.6 won on real tool use, reliability, latency, and completed agent tasks,
 not raw tokens per second alone. `gpt-oss-20b` remains the useful fast/light
@@ -195,9 +199,18 @@ nine Hermes tasks timed out.
 
 The table above is the original bake-off, run on the Q4_K_M quant. On
 2026-09-09 the winning model was promoted in place to the Q4_K_L quant (Q8_0
-embedding and output weights) at 100,000 context, with a post-swap bake-off
-showing generation, time to first token, and pass rate all at parity. See
+embedding and output weights) at 100,000 context (later raised to 115,000),
+with a post-swap bake-off showing generation, time to first token, and pass
+rate all at parity. See
 [the Q4_K_L promotion record](qwen36-q4kl-promotion.md).
+
+Row 6 is a later standalone candidate test (2026-09-18) with a 600-second
+per-trial timeout and no early stop, so its pass rate is not directly
+comparable to the rows above. The smaller quant left far more Vulkan headroom
+(about 8.9 GiB combined free against about 3.3 GiB for Q4_K_L), but generation
+was roughly a third of production, `err_big_file_read` timed out on both
+profiles, and Bowie ran past its 80°C limits. See
+[the candidate section](hermes-model-bakeoff.md#qwen38-27b-ud-q3_k_xl-candidate-2026-09-18).
 
 ## Performance-profile results
 
@@ -252,7 +265,7 @@ A successful deployment provides:
 - A private 2.5 GbE RPC path with no default route.
 - `llama-server` plus local Vulkan on node 1.
 - `ggml-rpc-server` plus Vulkan on node 2.
-- Qwen3.6 at 100K context behind an OpenAI-compatible management-LAN API.
+- Qwen3.6 at 115K context behind an OpenAI-compatible management-LAN API.
 - Moderate/1750 as the unattended production profile.
 - External clients such as Hermes connecting only to node 1.
 
