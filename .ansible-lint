@@ -2,4 +2,3 @@
 profile: production
 exclude_paths:
   - .ansible/
-  - benchmarks/private/

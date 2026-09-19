@@ -288,9 +288,7 @@ Comparability caveats: this run used a 600-second timeout with early-stop
 disabled while the other bake-offs used 180 or 300 seconds with early stop, so
 pass rates are not directly comparable; generation and TTFT were measured per
 request during the agent battery rather than with the standardized probe; and
-each task has only three repetitions. Raw logs (including the `-lv 4` startup
-logs), telemetry CSVs, and driver scripts are retained under the gitignored
-`benchmarks/private/qwen38-q3kxl-candidate-2026-09-18/`.
+each task has only three repetitions.
 
 #### One-shot creative generation: driving game (2026-09-18)
 
