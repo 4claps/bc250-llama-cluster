@@ -103,7 +103,7 @@ The validated client settings are:
   `/var/lib/llama.cpp/models/Qwen3.6-35B-A3B-Q4_K_L.gguf`
   (promoted from Q4_K_M on 2026-09-09).
 - Provider mode: custom OpenAI-compatible.
-- Context size: 100,000 tokens.
+- Context size: 115,000 tokens (`n_ctx` 115200).
 - Recommended request timeout: 300 seconds.
 - API authentication: none in the validated deployment; management-network
   firewall policy is the access-control boundary.

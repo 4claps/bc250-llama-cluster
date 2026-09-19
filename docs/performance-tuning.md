@@ -73,8 +73,8 @@ prefill-heavy workload is proven to benefit.
 The [fit qualification plan](qwen3-coder-next-fit.md) records the analysis that
 preceded the completed bake-off. `Qwen3-Coder-Next-UD-IQ1_S` subsequently ran at
 65,536 tokens but was not preferred. Qwen3.6-35B-A3B is the final production
-recommendation, running as the Q4_K_L quant at 100,000 context since 2026-09-09
-(see [the Q4_K_L promotion record](qwen36-q4kl-promotion.md)); `gpt-oss-20b`
+recommendation, running as the Q4_K_L quant since 2026-09-09 (100,000 context at
+promotion, 115,000 now; see [the Q4_K_L promotion record](qwen36-q4kl-promotion.md)); `gpt-oss-20b`
 MXFP4 is the fast/light alternative.
 GGUF size alone remains an invalid fit calculation on this integrated-GPU
 architecture because Vulkan and host processes contend for the same physical

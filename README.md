@@ -128,11 +128,11 @@ token context, automatic layer split, Bowie local Vulkan plus Crockett RPC, and
 | Crockett peak | 1750 MHz, 66°C, 80.34 W PPT |
 
 For Hermes Agent, the deployed recommendation is `Qwen3.6-35B-A3B-Q4_K_L`
-with a 100,000-token context, Q8_0 K/V cache, one slot, both GPUs, and automatic
+with a 115,000-token context, Q8_0 K/V cache, one slot, both GPUs, and automatic
 layer split. This started as `Qwen3.6-35B-A3B-Q4_K_M` at 65,536 context; the
 quant was promoted to Q4_K_L (Q8_0 embedding and output weights) at 100,000
 context on 2026-09-09 after a bake-off showed parity on generation, time to
-first token, and pass rate. See
+first token, and pass rate, and the context was later raised to 115,000. See
 [the Q4_K_L promotion record](docs/qwen36-q4kl-promotion.md).
 Cross-request host-RAM prompt caching is disabled while the normal
 Q8_0 K/V cache remains enabled. The qualified automatic fan curve held Bowie
@@ -151,6 +151,10 @@ reliability is acceptable.
 The larger Qwen3.6 UD-Q4_K_XL quant was also tested, but tighter Vulkan margins,
 slower generation, and excessive Hermes task latency ruled it out; the
 production quant upgrade instead went to Q4_K_L.
+A standalone `Qwen3.8-27B-UD-Q3_K_XL` candidate with MTP speculative decoding
+was tested on 2026-09-18 and also not recommended: despite far more memory
+headroom, it generated about 19 tok/s (roughly a third of production), one task
+timed out on both power profiles, and Bowie ran past its 80°C limits.
 The [Ministral 3 8B single-node versus RPC comparison](docs/ministral-single-vs-rpc.md)
 shows why a dense model that fits on one BC250 should normally remain local:
 RPC improved prefill but reduced sustained generation speed and efficiency.
