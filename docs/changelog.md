@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-19
+
+### Gemma 4 bake-off: not recommended
+
+Ran a standalone test of Gemma 4 26B-A4B (MoE) and Gemma 4 31B (dense), both Q4_K_M, through the full 27-trial Hermes battery on the Moderate profile with a 600-second per-trial timeout, early stop disabled, and no speculative decoding, alongside a `gpt-oss-20b` re-run as a control. Both Gemma models scored 22/27 (the control scored 23/27). The 26B-A4B generated about 39 tokens per second with no timeouts. The 31B generated about 12 tokens per second, ran out of memory at the production 115,000 context (it was tested at 65,536 instead), and pushed Bowie past its 80°C limits. Neither beats production or `gpt-oss-20b`, so production is unchanged. A Granite 4.2 30B test was attempted but Crockett froze hard during its load, and Gemma 3 27B was not run. Full results are in [the Hermes model bake-off](hermes-model-bakeoff.md#gemma-4-bake-off-2026-09-19).
+
+Operational note from the same run: downloading a model on Bowie while production is running got the downloader OOM-killed by the kernel, so stop production before downloading and use the plain HTTP download path (`HF_HUB_DISABLE_XET=1`).
+
 ## 2026-09-15
 
 ### Fan control hysteresis fix
