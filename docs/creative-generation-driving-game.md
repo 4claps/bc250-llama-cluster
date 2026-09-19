@@ -18,10 +18,6 @@ shows the source, not the running game).
 | Turbo Road Racer | Qwen3.6 Q4_K_L (production) | [`turbo-road-racer-qwen36-q4kl.html`](examples/driving-game/turbo-road-racer-qwen36-q4kl.html) |
 | Turbo Lane | Qwen3.8 UD-Q3_K_XL (candidate) | [`turbo-lane-qwen38-q3kxl.html`](examples/driving-game/turbo-lane-qwen38-q3kxl.html) |
 
-The files are the model output unchanged, except that production's response was
-wrapped in markdown fences despite the instruction and the fences were stripped.
-The candidate's output needed no stripping.
-
 ## Prompt
 
 Both models received this prompt from one saved file, byte-identical and not
