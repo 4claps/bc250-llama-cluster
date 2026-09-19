@@ -57,6 +57,7 @@ bc250_cooling_bypass: false
 bc250_fan_driver_enabled: true
 bc250_fan_control_enabled: true
 bc250_fan_control_channel: 2
+bc250_fan_control_hysteresis_degrees: 2
 bc250_fan_control_fan_mask: 2
 bc250_fan_control_channel_validated: false
 
