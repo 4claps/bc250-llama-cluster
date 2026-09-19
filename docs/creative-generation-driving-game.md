@@ -140,9 +140,3 @@ observation, on a different kind of task, that MTP drafts are accepted less ofte
 with this model and quant on this hardware. Because the candidate's own
 acceptance also fell relative to its agent-task figures, acceptance varies with
 the task as well as the model.
-
-## Artifacts
-
-Raw responses (including the full reasoning), summaries, validation output,
-screenshots, and the run scripts are retained under the gitignored
-`benchmarks/private/qwen38-q3kxl-candidate-2026-09-18/results/`.
